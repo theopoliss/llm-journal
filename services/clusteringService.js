@@ -9,22 +9,16 @@ import {
   getSetting,
   setSetting,
 } from './databaseService';
-import { clusterEmbeddings, labelCluster } from './embeddingsService';
+import { clusterEmbeddings, labelCluster, findOptimalK } from './embeddingsService';
 
 /**
  * Regenerate all cluster folders from scratch
- * @param {number} numClusters - Number of clusters to create (default from settings)
+ * @param {number} numClusters - Number of clusters to create (default: auto-detect with silhouette)
  * @returns {Promise<void>}
  */
 export const regenerateClusters = async (numClusters = null) => {
   try {
     console.log('Starting cluster regeneration...');
-
-    // Get number of clusters from settings or use default
-    if (!numClusters) {
-      const setting = await getSetting('cluster_count');
-      numClusters = setting ? parseInt(setting) : 5;
-    }
 
     // Get all entries with embeddings
     const entries = await getEntriesForClustering();
@@ -34,8 +28,23 @@ export const regenerateClusters = async (numClusters = null) => {
       return;
     }
 
-    // Adjust k if we have fewer entries than clusters
-    const k = Math.min(numClusters, Math.floor(entries.length / 2));
+    let k;
+
+    // Determine k: use silhouette scoring if numClusters not specified and enough entries
+    if (!numClusters && entries.length >= 10) {
+      console.log('Using silhouette scoring to find optimal k...');
+      const result = findOptimalK(entries, 3, 10);
+      k = result.k;
+      console.log(`Silhouette scoring selected k=${k} (score: ${result.score.toFixed(4)})`);
+    } else if (!numClusters) {
+      // Fallback for small datasets
+      k = Math.min(5, Math.floor(entries.length / 2));
+      console.log(`Using fallback k=${k} (dataset too small for silhouette)`);
+    } else {
+      // User-specified k
+      k = Math.min(numClusters, Math.floor(entries.length / 2));
+      console.log(`Using user-specified k=${k}`);
+    }
 
     console.log(`Clustering ${entries.length} entries into ${k} clusters...`);
 

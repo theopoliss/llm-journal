@@ -50,7 +50,6 @@ export const SORT_OPTIONS = {
 
 export const LIBRARY_TABS = {
   ALL: 'all',
-  RECENTS: 'recents',
   SMART_FOLDERS: 'smart_folders',
   MANUAL_FOLDERS: 'manual_folders',
 };

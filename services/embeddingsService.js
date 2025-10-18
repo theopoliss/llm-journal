@@ -67,6 +67,125 @@ export const cosineSimilarity = (a, b) => {
 };
 
 /**
+ * Calculate silhouette score for a clustering result
+ * @param {number[][]} embeddings - Array of embedding vectors
+ * @param {number[]} assignments - Cluster assignments for each embedding
+ * @param {number} k - Number of clusters
+ * @returns {number} - Average silhouette score (higher is better, range -1 to 1)
+ */
+export const calculateSilhouetteScore = (embeddings, assignments, k) => {
+  const n = embeddings.length;
+
+  if (n < 2 || k < 2) {
+    return 0;
+  }
+
+  // Group indices by cluster
+  const clusters = Array(k).fill(null).map(() => []);
+  for (let i = 0; i < n; i++) {
+    clusters[assignments[i]].push(i);
+  }
+
+  // Calculate silhouette score for each point
+  let totalScore = 0;
+  let validPoints = 0;
+
+  for (let i = 0; i < n; i++) {
+    const ownCluster = assignments[i];
+    const ownClusterIndices = clusters[ownCluster];
+
+    // Skip if cluster has only one point
+    if (ownClusterIndices.length === 1) {
+      continue;
+    }
+
+    // a(i): average distance to other points in same cluster
+    let sumA = 0;
+    for (const j of ownClusterIndices) {
+      if (j !== i) {
+        // Use cosine distance: 1 - similarity
+        sumA += 1 - cosineSimilarity(embeddings[i], embeddings[j]);
+      }
+    }
+    const a = sumA / (ownClusterIndices.length - 1);
+
+    // b(i): average distance to points in nearest other cluster
+    let minAvgDist = Infinity;
+    for (let c = 0; c < k; c++) {
+      if (c === ownCluster || clusters[c].length === 0) {
+        continue;
+      }
+
+      let sumDist = 0;
+      for (const j of clusters[c]) {
+        sumDist += 1 - cosineSimilarity(embeddings[i], embeddings[j]);
+      }
+      const avgDist = sumDist / clusters[c].length;
+
+      if (avgDist < minAvgDist) {
+        minAvgDist = avgDist;
+      }
+    }
+    const b = minAvgDist;
+
+    // Silhouette score for this point
+    const s = (b - a) / Math.max(a, b);
+    totalScore += s;
+    validPoints++;
+  }
+
+  return validPoints > 0 ? totalScore / validPoints : 0;
+};
+
+/**
+ * Find optimal number of clusters using silhouette scoring
+ * @param {Array<{id: number, embedding: number[]}>} entries - Entries with embeddings
+ * @param {number} minK - Minimum k to test (default 3)
+ * @param {number} maxK - Maximum k to test (default 10)
+ * @returns {{k: number, score: number}} - Optimal k and its silhouette score
+ */
+export const findOptimalK = (entries, minK = 3, maxK = 10) => {
+  const n = entries.length;
+
+  // Adjust maxK based on dataset size (need at least 3 entries per cluster on average)
+  const adjustedMaxK = Math.min(maxK, Math.floor(n / 3));
+  const adjustedMinK = Math.max(minK, 2);
+
+  if (n < adjustedMinK || adjustedMaxK < adjustedMinK) {
+    // Not enough entries to optimize, return minimum
+    return { k: Math.min(adjustedMinK, n), score: 0 };
+  }
+
+  console.log(`Testing k values from ${adjustedMinK} to ${adjustedMaxK}...`);
+
+  let bestK = adjustedMinK;
+  let bestScore = -Infinity;
+
+  // Test each k value
+  for (let k = adjustedMinK; k <= adjustedMaxK; k++) {
+    // Run k-means
+    const clusterAssignments = clusterEmbeddings(entries, k);
+
+    // Extract embeddings and assignments
+    const embeddings = entries.map(e => e.embedding);
+    const assignments = clusterAssignments.map(ca => ca.clusterId);
+
+    // Calculate silhouette score
+    const score = calculateSilhouetteScore(embeddings, assignments, k);
+
+    console.log(`k=${k}: silhouette score = ${score.toFixed(4)}`);
+
+    if (score > bestScore) {
+      bestScore = score;
+      bestK = k;
+    }
+  }
+
+  console.log(`Optimal k=${bestK} with score=${bestScore.toFixed(4)}`);
+  return { k: bestK, score: bestScore };
+};
+
+/**
  * Simple k-means clustering algorithm
  * @param {Array<{id: number, embedding: number[]}>} entries - Entries with embeddings
  * @param {number} k - Number of clusters

@@ -13,15 +13,18 @@ import {
 import { getSetting, setSetting } from '../services/databaseService';
 import { COLORS, SETTINGS_KEYS } from '../utils/constants';
 import { backfillEmbeddings, checkEmbeddingStatus } from '../scripts/backfillEmbeddings';
+import { regenerateClusters } from '../services/clusteringService';
 
 export default function SettingsScreen({ navigation }) {
   const [apiKey, setApiKey] = useState('');
   const [saving, setSaving] = useState(false);
   const [backfilling, setBackfilling] = useState(false);
   const [backfillProgress, setBackfillProgress] = useState('');
+  const [embeddingStatus, setEmbeddingStatus] = useState(null);
 
   useEffect(() => {
     loadSettings();
+    loadEmbeddingStatus();
   }, []);
 
   const loadSettings = async () => {
@@ -32,6 +35,15 @@ export default function SettingsScreen({ navigation }) {
       }
     } catch (error) {
       console.error('Error loading settings:', error);
+    }
+  };
+
+  const loadEmbeddingStatus = async () => {
+    try {
+      const status = await checkEmbeddingStatus();
+      setEmbeddingStatus(status);
+    } catch (error) {
+      console.error('Error loading embedding status:', error);
     }
   };
 
@@ -85,43 +97,72 @@ export default function SettingsScreen({ navigation }) {
 
   const handleGenerateEmbeddings = async () => {
     try {
-      // First check status
+      // Check current status
       const status = await checkEmbeddingStatus();
 
       if (status.withoutEmbeddings === 0) {
-        Alert.alert('Up to Date', 'All entries already have embeddings and are clustered!');
-        return;
-      }
+        // All entries have embeddings - offer to regenerate clusters
+        Alert.alert(
+          'Regenerate Smart Folders',
+          'This will re-analyze all entries and update your smart folders. Existing folders will be replaced.\n\nUse this after deleting entries or when you want fresh organization.',
+          [
+            { text: 'Cancel', style: 'cancel' },
+            {
+              text: 'Regenerate',
+              onPress: async () => {
+                setBackfilling(true);
+                setBackfillProgress('Regenerating clusters...');
 
-      Alert.alert(
-        'Generate Smart Folders',
-        `Found ${status.withoutEmbeddings} entries without embeddings. This will:\n\n• Generate embeddings for all entries\n• Extract topics\n• Create cluster folders\n\nThis may take a few minutes.`,
-        [
-          { text: 'Cancel', style: 'cancel' },
-          {
-            text: 'Start',
-            onPress: async () => {
-              setBackfilling(true);
-              setBackfillProgress('Starting...');
+                try {
+                  await regenerateClusters();
 
-              try {
-                await backfillEmbeddings((message, progress) => {
-                  setBackfillProgress(`${message} (${progress}%)`);
-                });
-
-                setBackfillProgress('');
-                setBackfilling(false);
-                Alert.alert('Success', 'Smart folders generated! Check the Smart tab in your journal list.');
-              } catch (error) {
-                console.error('Backfill error:', error);
-                setBackfillProgress('');
-                setBackfilling(false);
-                Alert.alert('Error', 'Failed to generate embeddings: ' + error.message);
-              }
+                  setBackfillProgress('');
+                  setBackfilling(false);
+                  await loadEmbeddingStatus(); // Refresh status
+                  Alert.alert('Success', 'Smart folders regenerated! Check the Smart tab in your journal list.');
+                } catch (error) {
+                  console.error('Regeneration error:', error);
+                  setBackfillProgress('');
+                  setBackfilling(false);
+                  Alert.alert('Error', 'Failed to regenerate folders: ' + error.message);
+                }
+              },
             },
-          },
-        ]
-      );
+          ]
+        );
+      } else {
+        // Some entries need embeddings - backfill first
+        Alert.alert(
+          'Generate Smart Folders',
+          `Found ${status.withoutEmbeddings} entries without embeddings. This will:\n\n• Generate embeddings for all entries\n• Extract topics\n• Create cluster folders\n\nThis may take a few minutes.`,
+          [
+            { text: 'Cancel', style: 'cancel' },
+            {
+              text: 'Start',
+              onPress: async () => {
+                setBackfilling(true);
+                setBackfillProgress('Starting...');
+
+                try {
+                  await backfillEmbeddings((message, progress) => {
+                    setBackfillProgress(`${message} (${progress}%)`);
+                  });
+
+                  setBackfillProgress('');
+                  setBackfilling(false);
+                  await loadEmbeddingStatus(); // Refresh status
+                  Alert.alert('Success', 'Smart folders generated! Check the Smart tab in your journal list.');
+                } catch (error) {
+                  console.error('Backfill error:', error);
+                  setBackfillProgress('');
+                  setBackfilling(false);
+                  Alert.alert('Error', 'Failed to generate embeddings: ' + error.message);
+                }
+              },
+            },
+          ]
+        );
+      }
     } catch (error) {
       console.error('Error checking status:', error);
       Alert.alert('Error', 'Failed to check embedding status');
@@ -207,7 +248,11 @@ export default function SettingsScreen({ navigation }) {
             disabled={backfilling}
           >
             <Text style={styles.saveButtonText}>
-              {backfilling ? 'Processing...' : 'Generate Smart Folders'}
+              {backfilling
+                ? 'Processing...'
+                : embeddingStatus?.withoutEmbeddings === 0
+                  ? 'Regenerate Smart Folders'
+                  : 'Generate Smart Folders'}
             </Text>
           </TouchableOpacity>
         </View>

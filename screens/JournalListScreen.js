@@ -10,7 +10,6 @@ import {
 } from 'react-native';
 import {
   getJournalEntriesSorted,
-  getRecentEntries,
   deleteJournalEntry,
   getSetting,
   setSetting,
@@ -61,9 +60,6 @@ export default function JournalListScreen({ navigation }) {
     try {
       if (activeTab === LIBRARY_TABS.ALL) {
         const data = await getJournalEntriesSorted(sortBy);
-        setEntries(data);
-      } else if (activeTab === LIBRARY_TABS.RECENTS) {
-        const data = await getRecentEntries(7);
         setEntries(data);
       } else if (activeTab === LIBRARY_TABS.SMART_FOLDERS) {
         const folders = await getSmartFolders();
@@ -133,7 +129,7 @@ export default function JournalListScreen({ navigation }) {
                 await deleteAudioFile(entry.audio_path);
               }
               await deleteJournalEntry(entry.id);
-              loadEntries();
+              loadData();
             } catch (error) {
               console.error('Error deleting entry:', error);
               Alert.alert('Error', 'Failed to delete entry');
@@ -263,19 +259,13 @@ export default function JournalListScreen({ navigation }) {
   );
 
   const renderTabContent = () => {
-    if (activeTab === LIBRARY_TABS.ALL || activeTab === LIBRARY_TABS.RECENTS) {
+    if (activeTab === LIBRARY_TABS.ALL) {
       if (entries.length === 0) {
         return (
           <View style={styles.emptyContainer}>
-            <Text style={styles.emptyText}>
-              {activeTab === LIBRARY_TABS.RECENTS
-                ? 'No entries in the last 7 days'
-                : 'No journal entries yet'}
-            </Text>
+            <Text style={styles.emptyText}>No journal entries yet</Text>
             <Text style={styles.emptySubtext}>
-              {activeTab === LIBRARY_TABS.RECENTS
-                ? 'Create an entry to see it here'
-                : 'Start recording to create your first entry'}
+              Start recording to create your first entry
             </Text>
           </View>
         );
@@ -399,7 +389,6 @@ export default function JournalListScreen({ navigation }) {
       <View style={styles.tabBar}>
         {Object.entries({
           [LIBRARY_TABS.ALL]: 'All',
-          [LIBRARY_TABS.RECENTS]: 'Recent',
           [LIBRARY_TABS.SMART_FOLDERS]: 'Smart',
           [LIBRARY_TABS.MANUAL_FOLDERS]: 'Folders',
         }).map(([key, label]) => (

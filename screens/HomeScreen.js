@@ -36,6 +36,9 @@ export default function HomeScreen({ navigation }) {
   const [blinkAnim] = useState(new Animated.Value(1));
   const [currentResponse, setCurrentResponse] = useState('');
   const [buttonShapeAnim] = useState(new Animated.Value(60)); // 60 = circle, 0 = square
+  const [buttonWidthAnim] = useState(new Animated.Value(120)); // 120 = normal, 140 = horizontal bar
+  const [buttonHeightAnim] = useState(new Animated.Value(120)); // 120 = normal, 10 = horizontal bar
+  const [processingPulseAnim] = useState(new Animated.Value(1)); // opacity pulse during processing
   const [showNameModal, setShowNameModal] = useState(false);
   const [pendingEntryId, setPendingEntryId] = useState(null);
 
@@ -60,6 +63,9 @@ export default function HomeScreen({ navigation }) {
   });
 
   useEffect(() => {
+    const isProcessing = recordingState === RECORDING_STATES.PROCESSING ||
+                        recordingState === RECORDING_STATES.WAITING_FOR_RESPONSE;
+
     if (recordingState === RECORDING_STATES.RECORDING) {
       // Start blinking animation
       Animated.loop(
@@ -77,20 +83,81 @@ export default function HomeScreen({ navigation }) {
         ])
       ).start();
       // Morph to square
-      Animated.timing(buttonShapeAnim, {
-        toValue: 0,
-        duration: 300,
-        useNativeDriver: false,
-      }).start();
-    } else {
-      // Stop animation
+      Animated.parallel([
+        Animated.timing(buttonShapeAnim, {
+          toValue: 0,
+          duration: 300,
+          useNativeDriver: false,
+        }),
+        Animated.timing(buttonWidthAnim, {
+          toValue: 120,
+          duration: 300,
+          useNativeDriver: false,
+        }),
+        Animated.timing(buttonHeightAnim, {
+          toValue: 120,
+          duration: 300,
+          useNativeDriver: false,
+        }),
+      ]).start();
+    } else if (isProcessing) {
+      // Stop blinking
       blinkAnim.setValue(1);
+      // Morph to horizontal bar
+      Animated.parallel([
+        Animated.timing(buttonShapeAnim, {
+          toValue: 0,
+          duration: 300,
+          useNativeDriver: false,
+        }),
+        Animated.timing(buttonWidthAnim, {
+          toValue: 140,
+          duration: 300,
+          useNativeDriver: false,
+        }),
+        Animated.timing(buttonHeightAnim, {
+          toValue: 10,
+          duration: 300,
+          useNativeDriver: false,
+        }),
+      ]).start();
+      // Start pulsing animation
+      Animated.loop(
+        Animated.sequence([
+          Animated.timing(processingPulseAnim, {
+            toValue: 0.4,
+            duration: 1000,
+            useNativeDriver: true,
+          }),
+          Animated.timing(processingPulseAnim, {
+            toValue: 1,
+            duration: 1000,
+            useNativeDriver: true,
+          }),
+        ])
+      ).start();
+    } else {
+      // Stop animations
+      blinkAnim.setValue(1);
+      processingPulseAnim.setValue(1);
       // Morph back to circle
-      Animated.timing(buttonShapeAnim, {
-        toValue: 60,
-        duration: 300,
-        useNativeDriver: false,
-      }).start();
+      Animated.parallel([
+        Animated.timing(buttonShapeAnim, {
+          toValue: 60,
+          duration: 300,
+          useNativeDriver: false,
+        }),
+        Animated.timing(buttonWidthAnim, {
+          toValue: 120,
+          duration: 300,
+          useNativeDriver: false,
+        }),
+        Animated.timing(buttonHeightAnim, {
+          toValue: 120,
+          duration: 300,
+          useNativeDriver: false,
+        }),
+      ]).start();
     }
   }, [recordingState]);
 
@@ -319,18 +386,26 @@ export default function HomeScreen({ navigation }) {
             onPress={isRecording ? handleStopRecording : handleStartRecording}
             disabled={isProcessing}
           >
-            <Animated.View
-              style={[
-                styles.recordButton,
-                { borderRadius: buttonShapeAnim },
-                mode === JOURNAL_MODES.CONVERSATIONAL && styles.recordButtonDark,
-                isRecording && styles.recordButtonActive,
-                mode === JOURNAL_MODES.CONVERSATIONAL && isRecording && styles.recordButtonActiveDark,
-              ]}
-            >
-              <Text style={[styles.recordButtonText, mode === JOURNAL_MODES.CONVERSATIONAL && styles.recordButtonTextDark]}>
-                {isRecording ? 'Stop' : 'Record'}
-              </Text>
+            <Animated.View style={{ opacity: isProcessing ? processingPulseAnim : 1 }}>
+              <Animated.View
+                style={[
+                  styles.recordButton,
+                  {
+                    borderRadius: buttonShapeAnim,
+                    width: buttonWidthAnim,
+                    height: buttonHeightAnim,
+                  },
+                  mode === JOURNAL_MODES.CONVERSATIONAL && styles.recordButtonDark,
+                  isRecording && styles.recordButtonActive,
+                  mode === JOURNAL_MODES.CONVERSATIONAL && isRecording && styles.recordButtonActiveDark,
+                ]}
+              >
+                {!isProcessing && (
+                  <Text style={[styles.recordButtonText, mode === JOURNAL_MODES.CONVERSATIONAL && styles.recordButtonTextDark]}>
+                    {isRecording ? 'Stop' : 'Record'}
+                  </Text>
+                )}
+              </Animated.View>
             </Animated.View>
           </TouchableOpacity>
         </View>
@@ -454,8 +529,6 @@ const styles = StyleSheet.create({
     justifyContent: 'center',
   },
   recordButton: {
-    width: 120,
-    height: 120,
     backgroundColor: COLORS.primary,
     justifyContent: 'center',
     alignItems: 'center',
