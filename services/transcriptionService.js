@@ -61,11 +61,11 @@ export const generateSummary = async (transcript) => {
         messages: [
           {
             role: 'system',
-            content: 'You are a helpful assistant that creates concise, meaningful summaries of journal entries. Focus on main themes, emotions, and key insights. Keep summaries under 200 words.',
+            content: 'Create a concise summary of the journal entry. Write in a direct, natural style starting immediately with the main theme or content. Do not use meta-phrases like "this entry", "the user", "this journal", or "the author". Focus on main themes, emotions, and key insights. Keep summaries under 200 words.',
           },
           {
             role: 'user',
-            content: `Please summarize this journal entry:\n\n${transcript}`,
+            content: `Summarize:\n\n${transcript}`,
           },
         ],
         temperature: 0.7,

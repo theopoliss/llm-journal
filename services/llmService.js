@@ -104,11 +104,11 @@ export const generateConversationSummary = async (conversationHistory) => {
         messages: [
           {
             role: 'system',
-            content: 'Create a concise summary of this journal conversation in third person. Focus on what was discussed: main topics, key thoughts, insights, and any realizations or action items. Write objectively and naturally. Keep it under 250 words.',
+            content: 'Summarize the journal conversation directly and naturally. Start immediately with the main topics or themes discussed. Do not use meta-phrases like "the conversation covers", "the user discusses", "this conversation", or "the entry explores". Focus on main topics, key thoughts, insights, and any realizations or action items. Write objectively. Keep it under 250 words.',
           },
           {
             role: 'user',
-            content: `Summarize this conversation:\n\n${formattedConversation}`,
+            content: `Summarize:\n\n${formattedConversation}`,
           },
         ],
         temperature: 0.7,

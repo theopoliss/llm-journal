@@ -159,65 +159,73 @@ export default function FolderDetailScreen({ route, navigation }) {
     }
   };
 
-  const renderEntry = ({ item }) => (
-    <View style={styles.entryWrapper}>
-      <View style={styles.entryCard}>
-        <TouchableOpacity
-          style={styles.entryContent}
-          onPress={() => navigation.navigate('EntryDetail', { entryId: item.id })}
-        >
-          <View style={styles.entryHeader}>
-            <View style={styles.entryHeaderLeft}>
-              <Text style={styles.entryDate}>{formatDate(item.date)}</Text>
-              <View
-                style={[
-                  styles.modeBadge,
-                  item.mode === JOURNAL_MODES.CONVERSATIONAL && styles.modeBadgeConversational,
-                ]}
-              >
-                <Text style={styles.modeBadgeText}>
-                  {item.mode === JOURNAL_MODES.SOLO ? 'Solo' : 'Chat'}
-                </Text>
+  const renderEntry = ({ item, index }) => {
+    const isLastItem = index === entries.length - 1;
+
+    return (
+      <View style={styles.entryWrapper}>
+        <View style={styles.entryCard}>
+          <TouchableOpacity
+            style={styles.entryContent}
+            onPress={() => navigation.navigate('EntryDetail', { entryId: item.id })}
+          >
+            <View style={styles.entryHeader}>
+              <View style={styles.entryHeaderLeft}>
+                <Text style={styles.entryDate}>{formatDate(item.date)}</Text>
+                <View
+                  style={[
+                    styles.modeBadge,
+                    item.mode === JOURNAL_MODES.SOLO ? styles.modeBadgeSolo : styles.modeBadgeConversational,
+                  ]}
+                >
+                  <Text style={[
+                    styles.modeBadgeText,
+                    item.mode === JOURNAL_MODES.SOLO && styles.modeBadgeTextSolo,
+                  ]}>
+                    {item.mode === JOURNAL_MODES.SOLO ? 'Solo' : 'Chat'}
+                  </Text>
+                </View>
               </View>
             </View>
-          </View>
-          {item.name && (
-            <Text style={styles.entryName}>{item.name}</Text>
-          )}
-          {item.summary ? (
-            <Text style={styles.entrySummary} numberOfLines={3}>
-              {item.summary}
-            </Text>
-          ) : (
-            <Text style={styles.entryNoSummary}>Processing...</Text>
-          )}
-        </TouchableOpacity>
-        <TouchableOpacity
-          style={styles.menuButton}
-          onPress={() => handleMenuPress(item.id)}
-        >
-          <Text style={styles.menuButtonText}>⋯</Text>
-        </TouchableOpacity>
-      </View>
-      {menuVisible === item.id && (
-        <>
+            {item.name && (
+              <Text style={styles.entryName}>{item.name}</Text>
+            )}
+            {item.summary ? (
+              <Text style={styles.entrySummary} numberOfLines={2}>
+                {item.summary}
+              </Text>
+            ) : (
+              <Text style={styles.entryNoSummary}>Processing...</Text>
+            )}
+          </TouchableOpacity>
           <TouchableOpacity
-            style={styles.menuBackdrop}
-            onPress={() => setMenuVisible(null)}
-            activeOpacity={1}
-          />
-          <View style={styles.menuDropdown}>
+            style={styles.menuButton}
+            onPress={() => handleMenuPress(item.id)}
+          >
+            <Text style={styles.menuButtonText}>⋯</Text>
+          </TouchableOpacity>
+        </View>
+        {!isLastItem && <View style={styles.entrySeparator} />}
+        {menuVisible === item.id && (
+          <>
             <TouchableOpacity
-              style={styles.menuItem}
-              onPress={() => handleDeleteEntry(item)}
-            >
-              <Text style={styles.menuItemText}>Delete</Text>
-            </TouchableOpacity>
-          </View>
-        </>
-      )}
-    </View>
-  );
+              style={styles.menuBackdrop}
+              onPress={() => setMenuVisible(null)}
+              activeOpacity={1}
+            />
+            <View style={styles.menuDropdown}>
+              <TouchableOpacity
+                style={styles.menuItem}
+                onPress={() => handleDeleteEntry(item)}
+              >
+                <Text style={styles.menuItemText}>Delete</Text>
+              </TouchableOpacity>
+            </View>
+          </>
+        )}
+      </View>
+    );
+  };
 
   return (
     <View style={styles.container}>
@@ -249,15 +257,19 @@ export default function FolderDetailScreen({ route, navigation }) {
           </Text>
         </View>
       ) : (
-        <FlatList
-          data={entries}
-          renderItem={renderEntry}
-          keyExtractor={(item) => item.id.toString()}
-          contentContainerStyle={styles.listContent}
-          refreshControl={
-            <RefreshControl refreshing={refreshing} onRefresh={handleRefresh} />
-          }
-        />
+        <View style={styles.listContent}>
+          <View style={styles.entriesGroupContainer}>
+            <FlatList
+              data={entries}
+              renderItem={renderEntry}
+              keyExtractor={(item) => item.id.toString()}
+              refreshControl={
+                <RefreshControl refreshing={refreshing} onRefresh={handleRefresh} />
+              }
+              scrollEnabled={false}
+            />
+          </View>
+        </View>
       )}
     </View>
   );
@@ -315,15 +327,26 @@ const styles = StyleSheet.create({
     paddingTop: 20,
     paddingBottom: 40,
   },
-  entryWrapper: {
-    marginBottom: 2,
-    position: 'relative',
-  },
-  entryCard: {
+  entriesGroupContainer: {
     backgroundColor: COLORS.background,
     borderWidth: 1,
     borderColor: COLORS.border,
+    borderRadius: 8,
+    overflow: 'hidden',
+  },
+  entryWrapper: {
+    position: 'relative',
+    backgroundColor: COLORS.background,
+  },
+  entryCard: {
+    backgroundColor: COLORS.background,
     flexDirection: 'row',
+  },
+  entrySeparator: {
+    height: 1,
+    backgroundColor: COLORS.border,
+    marginLeft: 20,
+    marginRight: 20,
   },
   entryContent: {
     flex: 1,
@@ -350,18 +373,25 @@ const styles = StyleSheet.create({
   modeBadge: {
     paddingHorizontal: 8,
     paddingVertical: 3,
-    backgroundColor: COLORS.primary,
     borderWidth: 1,
     borderColor: COLORS.border,
   },
+  modeBadgeSolo: {
+    backgroundColor: COLORS.card,
+    borderColor: COLORS.primary,
+  },
   modeBadgeConversational: {
     backgroundColor: COLORS.primary,
+    borderColor: COLORS.border,
   },
   modeBadgeText: {
     fontSize: 10,
     fontWeight: '400',
     color: COLORS.card,
     letterSpacing: 1,
+  },
+  modeBadgeTextSolo: {
+    color: COLORS.primary,
   },
   entryName: {
     fontSize: 15,

@@ -1,10 +1,9 @@
-import React, { useState, useEffect } from 'react';
+import { useState, useEffect } from 'react';
 import {
   View,
   Text,
   StyleSheet,
   FlatList,
-  SectionList,
   TouchableOpacity,
   Alert,
   RefreshControl,
@@ -178,96 +177,121 @@ export default function JournalListScreen({ navigation }) {
     }
   };
 
-  const renderEntry = ({ item }) => (
-    <View style={styles.entryWrapper}>
-      <View style={styles.entryCard}>
-        <TouchableOpacity
-          style={styles.entryContent}
-          onPress={() => navigation.navigate('EntryDetail', { entryId: item.id })}
-        >
-          <View style={styles.entryHeader}>
-            <View style={styles.entryHeaderLeft}>
-              <Text style={styles.entryDate}>{formatDate(item.date)}</Text>
-              <View
-                style={[
-                  styles.modeBadge,
-                  item.mode === JOURNAL_MODES.CONVERSATIONAL && styles.modeBadgeConversational,
-                ]}
-              >
-                <Text style={styles.modeBadgeText}>
-                  {item.mode === JOURNAL_MODES.SOLO ? 'Solo' : 'Chat'}
-                </Text>
+  const renderEntry = ({ item, index, section }) => {
+    const isLastItem = index === section.data.length - 1;
+
+    return (
+      <View style={styles.entryWrapper}>
+        <View style={styles.entryCard}>
+          <TouchableOpacity
+            style={styles.entryContent}
+            onPress={() => navigation.navigate('EntryDetail', { entryId: item.id })}
+          >
+            <View style={styles.entryHeader}>
+              <View style={styles.entryHeaderLeft}>
+                <Text style={styles.entryDate}>{formatDate(item.date)}</Text>
+                <View
+                  style={[
+                    styles.modeBadge,
+                    item.mode === JOURNAL_MODES.SOLO ? styles.modeBadgeSolo : styles.modeBadgeConversational,
+                  ]}
+                >
+                  <Text style={[
+                    styles.modeBadgeText,
+                    item.mode === JOURNAL_MODES.SOLO && styles.modeBadgeTextSolo,
+                  ]}>
+                    {item.mode === JOURNAL_MODES.SOLO ? 'Solo' : 'Chat'}
+                  </Text>
+                </View>
               </View>
             </View>
-          </View>
-          {item.name && (
-            <Text style={styles.entryName}>{item.name}</Text>
-          )}
-          {item.summary ? (
-            <Text style={styles.entrySummary} numberOfLines={3}>
-              {item.summary}
-            </Text>
-          ) : (
-            <Text style={styles.entryNoSummary}>Processing...</Text>
-          )}
-        </TouchableOpacity>
-        <TouchableOpacity
-          style={styles.menuButton}
-          onPress={() => handleMenuPress(item.id)}
-        >
-          <Text style={styles.menuButtonText}>⋯</Text>
-        </TouchableOpacity>
-      </View>
-      {menuVisible === item.id && (
-        <>
+            {item.name && (
+              <Text style={styles.entryName}>{item.name}</Text>
+            )}
+            {item.summary ? (
+              <Text style={styles.entrySummary} numberOfLines={2}>
+                {item.summary}
+              </Text>
+            ) : (
+              <Text style={styles.entryNoSummary}>Processing...</Text>
+            )}
+          </TouchableOpacity>
           <TouchableOpacity
-            style={styles.menuBackdrop}
-            onPress={() => setMenuVisible(null)}
-            activeOpacity={1}
-          />
-          <View style={styles.menuDropdown}>
+            style={styles.menuButton}
+            onPress={() => handleMenuPress(item.id)}
+          >
+            <Text style={styles.menuButtonText}>⋯</Text>
+          </TouchableOpacity>
+        </View>
+        {!isLastItem && <View style={styles.entrySeparator} />}
+        {menuVisible === item.id && (
+          <>
             <TouchableOpacity
-              style={styles.menuItem}
-              onPress={() => handleDeleteEntry(item)}
-            >
-              <Text style={styles.menuItemText}>Delete</Text>
-            </TouchableOpacity>
-          </View>
-        </>
-      )}
-    </View>
-  );
+              style={styles.menuBackdrop}
+              onPress={() => setMenuVisible(null)}
+              activeOpacity={1}
+            />
+            <View style={styles.menuDropdown}>
+              <TouchableOpacity
+                style={styles.menuItem}
+                onPress={() => handleDeleteEntry(item)}
+              >
+                <Text style={styles.menuItemText}>Delete</Text>
+              </TouchableOpacity>
+            </View>
+          </>
+        )}
+      </View>
+    );
+  };
 
   const getSortLabel = (sort) => {
     return sort === SORT_OPTIONS.DATE_ASC ? 'Oldest First' : 'Newest First';
   };
 
-  const renderFolder = ({ item }) => (
-    <TouchableOpacity
-      style={styles.folderCard}
-      onPress={() => navigation.navigate('FolderDetail', {
-        folderId: item.id,
-        folderType: activeTab === LIBRARY_TABS.SMART_FOLDERS ? 'smart' : 'manual',
-        folderName: item.name,
-      })}
-    >
-      <View style={styles.folderHeader}>
-        <Text style={styles.folderName}>{item.name}</Text>
-        {item.type === 'cluster' && (
-          <View style={styles.clusterBadge}>
-            <Text style={styles.clusterBadgeText}>Auto</Text>
-          </View>
-        )}
-      </View>
-      <Text style={styles.folderCount}>
-        {item.entryCount} {item.entryCount === 1 ? 'entry' : 'entries'}
-      </Text>
-    </TouchableOpacity>
-  );
+  const renderFolder = ({ item, index }) => {
+    const folders = activeTab === LIBRARY_TABS.SMART_FOLDERS ? smartFolders : manualFolders;
+    const isLastItem = index === folders.length - 1;
 
-  const renderSectionHeader = ({ section: { title } }) => (
-    <View style={styles.sectionHeader}>
-      <Text style={styles.sectionHeaderText}>{title}</Text>
+    return (
+      <>
+        <TouchableOpacity
+          style={styles.folderCard}
+          onPress={() => navigation.navigate('FolderDetail', {
+            folderId: item.id,
+            folderType: activeTab === LIBRARY_TABS.SMART_FOLDERS ? 'smart' : 'manual',
+            folderName: item.name,
+          })}
+        >
+          <View style={styles.folderHeader}>
+            <Text style={styles.folderName}>{item.name}</Text>
+            {item.type === 'cluster' && (
+              <View style={styles.clusterBadge}>
+                <Text style={styles.clusterBadgeText}>Auto</Text>
+              </View>
+            )}
+          </View>
+          <Text style={styles.folderCount}>
+            {item.entryCount} {item.entryCount === 1 ? 'entry' : 'entries'}
+          </Text>
+        </TouchableOpacity>
+        {!isLastItem && <View style={styles.folderSeparator} />}
+      </>
+    );
+  };
+
+  const renderSectionWrapper = ({ item: section }) => (
+    <View style={styles.sectionContainer}>
+      <View style={styles.sectionHeader}>
+        <Text style={styles.sectionHeaderText}>{section.title}</Text>
+      </View>
+      <View style={styles.sectionGroupContainer}>
+        {section.data.map((item, index) => (
+          <View key={item.id}>
+            {renderEntry({ item, index, section })}
+          </View>
+        ))}
+      </View>
     </View>
   );
 
@@ -285,16 +309,14 @@ export default function JournalListScreen({ navigation }) {
       }
 
       return (
-        <SectionList
-          sections={groupedEntries}
-          renderItem={renderEntry}
-          renderSectionHeader={renderSectionHeader}
-          keyExtractor={(item) => item.id.toString()}
+        <FlatList
+          data={groupedEntries}
+          renderItem={renderSectionWrapper}
+          keyExtractor={(item) => item.title}
           contentContainerStyle={styles.listContent}
           refreshControl={
             <RefreshControl refreshing={refreshing} onRefresh={handleRefresh} />
           }
-          stickySectionHeadersEnabled={false}
         />
       );
     }
@@ -312,15 +334,19 @@ export default function JournalListScreen({ navigation }) {
       }
 
       return (
-        <FlatList
-          data={smartFolders}
-          renderItem={renderFolder}
-          keyExtractor={(item) => item.id.toString()}
-          contentContainerStyle={styles.listContent}
-          refreshControl={
-            <RefreshControl refreshing={refreshing} onRefresh={handleRefresh} />
-          }
-        />
+        <View style={styles.listContent}>
+          <View style={styles.foldersGroupContainer}>
+            <FlatList
+              data={smartFolders}
+              renderItem={renderFolder}
+              keyExtractor={(item) => item.id.toString()}
+              refreshControl={
+                <RefreshControl refreshing={refreshing} onRefresh={handleRefresh} />
+              }
+              scrollEnabled={false}
+            />
+          </View>
+        </View>
       );
     }
 
@@ -337,15 +363,19 @@ export default function JournalListScreen({ navigation }) {
       }
 
       return (
-        <FlatList
-          data={manualFolders}
-          renderItem={renderFolder}
-          keyExtractor={(item) => item.id.toString()}
-          contentContainerStyle={styles.listContent}
-          refreshControl={
-            <RefreshControl refreshing={refreshing} onRefresh={handleRefresh} />
-          }
-        />
+        <View style={styles.listContent}>
+          <View style={styles.foldersGroupContainer}>
+            <FlatList
+              data={manualFolders}
+              renderItem={renderFolder}
+              keyExtractor={(item) => item.id.toString()}
+              refreshControl={
+                <RefreshControl refreshing={refreshing} onRefresh={handleRefresh} />
+              }
+              scrollEnabled={false}
+            />
+          </View>
+        </View>
       );
     }
   };
@@ -561,12 +591,22 @@ const styles = StyleSheet.create({
     color: COLORS.text,
     fontWeight: '500',
   },
-  folderCard: {
+  foldersGroupContainer: {
     backgroundColor: COLORS.background,
     borderWidth: 1,
     borderColor: COLORS.border,
+    borderRadius: 8,
+    overflow: 'hidden',
+  },
+  folderCard: {
+    backgroundColor: COLORS.background,
     padding: 20,
-    marginBottom: 2,
+  },
+  folderSeparator: {
+    height: 1,
+    backgroundColor: COLORS.border,
+    marginLeft: 20,
+    marginRight: 20,
   },
   folderHeader: {
     flexDirection: 'row',
@@ -604,14 +644,14 @@ const styles = StyleSheet.create({
     paddingTop: 20,
     paddingBottom: 40,
   },
+  sectionContainer: {
+    marginBottom: 20,
+  },
   sectionHeader: {
     backgroundColor: COLORS.background,
     paddingVertical: 16,
     paddingHorizontal: 0,
-    marginTop: 20,
     marginBottom: 12,
-    borderBottomWidth: 1,
-    borderBottomColor: COLORS.border,
   },
   sectionHeaderText: {
     fontSize: 11,
@@ -620,15 +660,26 @@ const styles = StyleSheet.create({
     letterSpacing: 2,
     textTransform: 'uppercase',
   },
-  entryWrapper: {
-    marginBottom: 2,
-    position: 'relative',
-  },
-  entryCard: {
+  sectionGroupContainer: {
     backgroundColor: COLORS.background,
     borderWidth: 1,
     borderColor: COLORS.border,
+    borderRadius: 8,
+    overflow: 'hidden',
+  },
+  entryWrapper: {
+    position: 'relative',
+    backgroundColor: COLORS.background,
+  },
+  entryCard: {
+    backgroundColor: COLORS.background,
     flexDirection: 'row',
+  },
+  entrySeparator: {
+    height: 1,
+    backgroundColor: COLORS.border,
+    marginLeft: 20,
+    marginRight: 20,
   },
   entryContent: {
     flex: 1,
@@ -655,18 +706,25 @@ const styles = StyleSheet.create({
   modeBadge: {
     paddingHorizontal: 8,
     paddingVertical: 3,
-    backgroundColor: COLORS.primary,
     borderWidth: 1,
     borderColor: COLORS.border,
   },
+  modeBadgeSolo: {
+    backgroundColor: COLORS.card,
+    borderColor: COLORS.primary,
+  },
   modeBadgeConversational: {
     backgroundColor: COLORS.primary,
+    borderColor: COLORS.border,
   },
   modeBadgeText: {
     fontSize: 10,
     fontWeight: '400',
     color: COLORS.card,
     letterSpacing: 1,
+  },
+  modeBadgeTextSolo: {
+    color: COLORS.primary,
   },
   entryName: {
     fontSize: 15,
