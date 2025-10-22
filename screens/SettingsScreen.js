@@ -175,13 +175,13 @@ export default function SettingsScreen({ navigation }) {
       behavior={Platform.OS === 'ios' ? 'padding' : 'height'}
     >
       <View style={styles.header}>
-        <Text style={styles.title}>Settings</Text>
         <TouchableOpacity
           style={styles.backButton}
           onPress={() => navigation.goBack()}
         >
           <Text style={styles.backButtonText}>← Back</Text>
         </TouchableOpacity>
+        <Text style={styles.title}>Settings</Text>
       </View>
 
       <ScrollView
@@ -304,21 +304,21 @@ const styles = StyleSheet.create({
     borderBottomWidth: 1,
     borderBottomColor: COLORS.border,
   },
-  title: {
-    fontSize: 20,
-    fontWeight: '300',
-    color: COLORS.text,
-    marginBottom: 20,
-    letterSpacing: 2,
-  },
   backButton: {
     alignSelf: 'flex-start',
+    marginBottom: 20,
   },
   backButtonText: {
     fontSize: 13,
     color: COLORS.text,
     fontWeight: '400',
     letterSpacing: 1,
+  },
+  title: {
+    fontSize: 20,
+    fontWeight: '300',
+    color: COLORS.text,
+    letterSpacing: 2,
   },
   scrollView: {
     flex: 1,

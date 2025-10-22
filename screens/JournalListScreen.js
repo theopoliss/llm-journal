@@ -4,6 +4,7 @@ import {
   Text,
   StyleSheet,
   FlatList,
+  SectionList,
   TouchableOpacity,
   Alert,
   RefreshControl,
@@ -19,10 +20,12 @@ import {
 } from '../services/databaseService';
 import { deleteAudioFile } from '../services/audioService';
 import { COLORS, JOURNAL_MODES, SORT_OPTIONS, LIBRARY_TABS } from '../utils/constants';
+import { groupEntriesByTimePeriod } from '../utils/dateHelpers';
 
 export default function JournalListScreen({ navigation }) {
   const [activeTab, setActiveTab] = useState(LIBRARY_TABS.ALL);
   const [entries, setEntries] = useState([]);
+  const [groupedEntries, setGroupedEntries] = useState([]);
   const [smartFolders, setSmartFolders] = useState([]);
   const [manualFolders, setManualFolders] = useState([]);
   const [refreshing, setRefreshing] = useState(false);
@@ -61,6 +64,10 @@ export default function JournalListScreen({ navigation }) {
       if (activeTab === LIBRARY_TABS.ALL) {
         const data = await getJournalEntriesSorted(sortBy);
         setEntries(data);
+
+        // Generate grouped data for SectionList
+        const grouped = groupEntriesByTimePeriod(data, sortBy);
+        setGroupedEntries(grouped);
       } else if (activeTab === LIBRARY_TABS.SMART_FOLDERS) {
         const folders = await getSmartFolders();
         // Load entry counts for each folder
@@ -258,6 +265,12 @@ export default function JournalListScreen({ navigation }) {
     </TouchableOpacity>
   );
 
+  const renderSectionHeader = ({ section: { title } }) => (
+    <View style={styles.sectionHeader}>
+      <Text style={styles.sectionHeaderText}>{title}</Text>
+    </View>
+  );
+
   const renderTabContent = () => {
     if (activeTab === LIBRARY_TABS.ALL) {
       if (entries.length === 0) {
@@ -272,14 +285,16 @@ export default function JournalListScreen({ navigation }) {
       }
 
       return (
-        <FlatList
-          data={entries}
+        <SectionList
+          sections={groupedEntries}
           renderItem={renderEntry}
+          renderSectionHeader={renderSectionHeader}
           keyExtractor={(item) => item.id.toString()}
           contentContainerStyle={styles.listContent}
           refreshControl={
             <RefreshControl refreshing={refreshing} onRefresh={handleRefresh} />
           }
+          stickySectionHeadersEnabled={false}
         />
       );
     }
@@ -338,20 +353,26 @@ export default function JournalListScreen({ navigation }) {
   return (
     <View style={styles.container}>
       <View style={styles.header}>
+        <TouchableOpacity
+          style={styles.backButton}
+          onPress={() => navigation.goBack()}
+        >
+          <Text style={styles.backButtonText}>← Back</Text>
+        </TouchableOpacity>
         <Text style={styles.title}>Journal Entries</Text>
         <View style={styles.headerControls}>
+          <TouchableOpacity
+            style={styles.searchButton}
+            onPress={() => navigation.navigate('Search')}
+          >
+            <Text style={styles.searchButtonText}>Search</Text>
+          </TouchableOpacity>
           <TouchableOpacity
             style={styles.sortButton}
             onPress={() => setShowSortMenu(!showSortMenu)}
           >
             <Text style={styles.sortButtonText}>{getSortLabel(sortBy)}</Text>
             <Text style={styles.sortButtonIcon}>{showSortMenu ? '▲' : '▼'}</Text>
-          </TouchableOpacity>
-          <TouchableOpacity
-            style={styles.backButton}
-            onPress={() => navigation.goBack()}
-          >
-            <Text style={styles.backButtonText}>← Back</Text>
           </TouchableOpacity>
         </View>
       </View>
@@ -423,6 +444,16 @@ const styles = StyleSheet.create({
     borderBottomWidth: 1,
     borderBottomColor: COLORS.border,
   },
+  backButton: {
+    alignSelf: 'flex-start',
+    marginBottom: 20,
+  },
+  backButtonText: {
+    fontSize: 13,
+    color: COLORS.text,
+    fontWeight: '400',
+    letterSpacing: 1,
+  },
   title: {
     fontSize: 20,
     fontWeight: '300',
@@ -433,7 +464,20 @@ const styles = StyleSheet.create({
   headerControls: {
     flexDirection: 'row',
     alignItems: 'center',
-    justifyContent: 'space-between',
+    gap: 12,
+  },
+  searchButton: {
+    paddingHorizontal: 12,
+    paddingVertical: 6,
+    borderWidth: 1,
+    borderColor: COLORS.border,
+    backgroundColor: COLORS.background,
+  },
+  searchButtonText: {
+    fontSize: 12,
+    color: COLORS.text,
+    fontWeight: '400',
+    letterSpacing: 0.5,
   },
   sortButton: {
     flexDirection: 'row',
@@ -454,15 +498,6 @@ const styles = StyleSheet.create({
   sortButtonIcon: {
     fontSize: 8,
     color: COLORS.text,
-  },
-  backButton: {
-    alignSelf: 'flex-start',
-  },
-  backButtonText: {
-    fontSize: 13,
-    color: COLORS.text,
-    fontWeight: '400',
-    letterSpacing: 1,
   },
   sortMenuBackdrop: {
     position: 'absolute',
@@ -568,6 +603,22 @@ const styles = StyleSheet.create({
     padding: 40,
     paddingTop: 20,
     paddingBottom: 40,
+  },
+  sectionHeader: {
+    backgroundColor: COLORS.background,
+    paddingVertical: 16,
+    paddingHorizontal: 0,
+    marginTop: 20,
+    marginBottom: 12,
+    borderBottomWidth: 1,
+    borderBottomColor: COLORS.border,
+  },
+  sectionHeaderText: {
+    fontSize: 11,
+    fontWeight: '500',
+    color: COLORS.text,
+    letterSpacing: 2,
+    textTransform: 'uppercase',
   },
   entryWrapper: {
     marginBottom: 2,

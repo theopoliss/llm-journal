@@ -6,6 +6,7 @@ import JournalListScreen from '../screens/JournalListScreen';
 import EntryDetailScreen from '../screens/EntryDetailScreen';
 import FolderDetailScreen from '../screens/FolderDetailScreen';
 import SettingsScreen from '../screens/SettingsScreen';
+import SearchScreen from '../screens/SearchScreen';
 
 const Stack = createStackNavigator();
 
@@ -37,6 +38,7 @@ export default function AppNavigator() {
       >
         <Stack.Screen name="Home" component={HomeScreen} />
         <Stack.Screen name="JournalList" component={JournalListScreen} />
+        <Stack.Screen name="Search" component={SearchScreen} />
         <Stack.Screen name="FolderDetail" component={FolderDetailScreen} />
         <Stack.Screen name="EntryDetail" component={EntryDetailScreen} />
         <Stack.Screen name="Settings" component={SettingsScreen} />

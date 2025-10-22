@@ -482,3 +482,26 @@ export const updateEntryClusters = async (clusterAssignments) => {
     await updateJournalEntry(assignment.entryId, { cluster_id: assignment.clusterId });
   }
 };
+
+// Search
+
+export const searchEntriesByKeywords = async (query) => {
+  if (!query || query.trim().length === 0) {
+    return [];
+  }
+
+  const searchTerm = `%${query.toLowerCase()}%`;
+
+  const result = await db.getAllAsync(
+    `SELECT * FROM journal_entries
+     WHERE
+       LOWER(transcript) LIKE ? OR
+       LOWER(summary) LIKE ? OR
+       LOWER(name) LIKE ? OR
+       LOWER(topics) LIKE ?
+     ORDER BY created_at DESC`,
+    [searchTerm, searchTerm, searchTerm, searchTerm]
+  );
+
+  return result;
+};
