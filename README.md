@@ -4,7 +4,7 @@ A voice-first journaling app with AI-powered transcription, conversation, and au
 
 ## Overview
 
-LLM Journal is a React Native mobile application that lets you create journal entries through voice recording. It offers two journaling modes and uses AI to transcribe, summarize, and automatically organize your entries into smart folders.
+LLM Journal is a mobile app that lets you create journal entries through voice recording. It offers two journaling modes and uses AI to transcribe, summarize, and automatically organize your entries into smart folders.
 
 ## Features
 
@@ -135,7 +135,3 @@ llm-journal/
 - Clustering runs after every 10 new entries
 - LLM generates human-readable labels for each cluster
 - Folders update automatically as new entries arrive
-
-## License
-
-Private project
