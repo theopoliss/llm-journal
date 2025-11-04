@@ -8,6 +8,7 @@ import {
   TouchableOpacity,
   ActivityIndicator,
   Alert,
+  ScrollView,
 } from 'react-native';
 import { searchEntries, SEARCH_MODES, getSearchSuggestions } from '../services/searchService';
 import { COLORS, JOURNAL_MODES } from '../utils/constants';
@@ -115,50 +116,62 @@ export default function SearchScreen({ navigation }) {
     return text;
   };
 
-  const renderResult = ({ item }) => (
-    <TouchableOpacity
-      style={styles.resultCard}
-      onPress={() => navigation.navigate('EntryDetail', { entryId: item.id })}
-    >
-      <View style={styles.resultHeader}>
-        <View style={styles.resultHeaderLeft}>
-          <Text style={styles.resultDate}>{formatDate(item.date)}</Text>
-          <View
-            style={[
-              styles.modeBadge,
-              item.mode === JOURNAL_MODES.CONVERSATIONAL && styles.modeBadgeConversational,
-            ]}
+  const renderResult = ({ item, index }) => {
+    const isLastItem = index === results.length - 1;
+
+    return (
+      <View style={styles.entryWrapper}>
+        <View style={styles.entryCard}>
+          <TouchableOpacity
+            style={styles.entryContent}
+            onPress={() => navigation.navigate('EntryDetail', { entryId: item.id })}
           >
-            <Text style={styles.modeBadgeText}>
-              {item.mode === JOURNAL_MODES.SOLO ? 'Solo' : 'Chat'}
-            </Text>
-          </View>
-        </View>
-        <View style={styles.scoreContainer}>
-          <View style={[styles.scoreBar, { width: `${item.combinedScore * 100}%`, backgroundColor: getScoreColor(item.combinedScore) }]} />
-          <Text style={styles.scoreText}>{Math.round(item.combinedScore * 100)}%</Text>
-        </View>
-      </View>
-
-      {item.name && (
-        <Text style={styles.resultName}>{item.name}</Text>
-      )}
-
-      <Text style={styles.resultSummary} numberOfLines={3}>
-        {item.summary || item.transcript?.substring(0, 150)}
-      </Text>
-
-      {item.matchTypes && (
-        <View style={styles.matchTypesContainer}>
-          {item.matchTypes.map((type, idx) => (
-            <View key={idx} style={styles.matchTypeBadge}>
-              <Text style={styles.matchTypeText}>{type}</Text>
+            <View style={styles.resultHeader}>
+              <View style={styles.resultHeaderLeft}>
+                <Text style={styles.resultDate}>{formatDate(item.date)}</Text>
+                <View
+                  style={[
+                    styles.modeBadge,
+                    item.mode === JOURNAL_MODES.SOLO ? styles.modeBadgeSolo : styles.modeBadgeConversational,
+                  ]}
+                >
+                  <Text style={[
+                    styles.modeBadgeText,
+                    item.mode === JOURNAL_MODES.SOLO && styles.modeBadgeTextSolo,
+                  ]}>
+                    {item.mode === JOURNAL_MODES.SOLO ? 'Solo' : 'Chat'}
+                  </Text>
+                </View>
+              </View>
+              <View style={styles.scoreContainer}>
+                <View style={[styles.scoreBar, { width: `${item.combinedScore * 100}%`, backgroundColor: getScoreColor(item.combinedScore) }]} />
+                <Text style={styles.scoreText}>{Math.round(item.combinedScore * 100)}%</Text>
+              </View>
             </View>
-          ))}
+
+            {item.name && (
+              <Text style={styles.resultName}>{item.name}</Text>
+            )}
+
+            <Text style={styles.resultSummary} numberOfLines={2}>
+              {item.summary || item.transcript?.substring(0, 150)}
+            </Text>
+
+            {item.matchTypes && (
+              <View style={styles.matchTypesContainer}>
+                {item.matchTypes.map((type, idx) => (
+                  <View key={idx} style={styles.matchTypeBadge}>
+                    <Text style={styles.matchTypeText}>{type}</Text>
+                  </View>
+                ))}
+              </View>
+            )}
+          </TouchableOpacity>
         </View>
-      )}
-    </TouchableOpacity>
-  );
+        {!isLastItem && <View style={styles.entrySeparator} />}
+      </View>
+    );
+  };
 
   const renderEmptyState = () => {
     if (loading) {
@@ -286,12 +299,16 @@ export default function SearchScreen({ navigation }) {
 
       {/* Results List */}
       {results.length > 0 ? (
-        <FlatList
-          data={results}
-          renderItem={renderResult}
-          keyExtractor={(item) => item.id.toString()}
-          contentContainerStyle={styles.listContent}
-        />
+        <ScrollView style={styles.scrollView} contentContainerStyle={styles.listContent}>
+          <View style={styles.resultsGroupContainer}>
+            <FlatList
+              data={results}
+              renderItem={renderResult}
+              keyExtractor={(item) => item.id.toString()}
+              scrollEnabled={false}
+            />
+          </View>
+        </ScrollView>
       ) : (
         renderEmptyState()
       )}
@@ -383,16 +400,38 @@ const styles = StyleSheet.create({
     fontWeight: '300',
     letterSpacing: 1,
   },
+  scrollView: {
+    flex: 1,
+  },
   listContent: {
     padding: 40,
-    paddingTop: 0,
+    paddingTop: 20,
+    paddingBottom: 60,
   },
-  resultCard: {
+  resultsGroupContainer: {
     backgroundColor: COLORS.background,
     borderWidth: 1,
     borderColor: COLORS.border,
+    borderRadius: 8,
+    overflow: 'hidden',
+  },
+  entryWrapper: {
+    position: 'relative',
+    backgroundColor: COLORS.background,
+  },
+  entryCard: {
+    backgroundColor: COLORS.background,
+    flexDirection: 'row',
+  },
+  entrySeparator: {
+    height: 1,
+    backgroundColor: COLORS.border,
+    marginLeft: 20,
+    marginRight: 20,
+  },
+  entryContent: {
+    flex: 1,
     padding: 20,
-    marginBottom: 2,
   },
   resultHeader: {
     flexDirection: 'row',
@@ -415,18 +454,25 @@ const styles = StyleSheet.create({
   modeBadge: {
     paddingHorizontal: 8,
     paddingVertical: 3,
-    backgroundColor: COLORS.primary,
     borderWidth: 1,
     borderColor: COLORS.border,
   },
+  modeBadgeSolo: {
+    backgroundColor: COLORS.card,
+    borderColor: COLORS.primary,
+  },
   modeBadgeConversational: {
     backgroundColor: COLORS.primary,
+    borderColor: COLORS.border,
   },
   modeBadgeText: {
     fontSize: 10,
     fontWeight: '400',
     color: COLORS.card,
     letterSpacing: 1,
+  },
+  modeBadgeTextSolo: {
+    color: COLORS.primary,
   },
   scoreContainer: {
     alignItems: 'flex-end',

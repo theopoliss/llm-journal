@@ -186,3 +186,130 @@ export const getClusteringStats = async () => {
     };
   }
 };
+
+/**
+ * Check if clustering is eligible to run
+ * @returns {Promise<{eligible: boolean, reason?: string, entryCount: number}>}
+ */
+export const checkClusteringEligibility = async () => {
+  try {
+    const entries = await getEntriesForClustering();
+    const entryCount = entries.length;
+
+    if (entryCount < 3) {
+      return {
+        eligible: false,
+        reason: 'Need at least 3 entries with embeddings to generate clusters',
+        entryCount,
+      };
+    }
+
+    return {
+      eligible: true,
+      entryCount,
+    };
+  } catch (error) {
+    console.error('Error checking clustering eligibility:', error);
+    return {
+      eligible: false,
+      reason: 'Failed to check clustering status: ' + error.message,
+      entryCount: 0,
+    };
+  }
+};
+
+/**
+ * Regenerate clusters with progress callbacks
+ * @param {Function} onProgress - Callback function (message: string, percentage: number) => void
+ * @param {number} numClusters - Number of clusters to create (default: auto-detect)
+ * @returns {Promise<void>}
+ */
+export const regenerateClustersWithProgress = async (onProgress, numClusters = null) => {
+  try {
+    if (onProgress) onProgress('Loading entries...', 10);
+
+    // Get all entries with embeddings
+    const entries = await getEntriesForClustering();
+
+    if (entries.length < 3) {
+      throw new Error('Not enough entries with embeddings to cluster');
+    }
+
+    if (onProgress) onProgress('Clustering entries...', 20);
+
+    let k;
+
+    // Determine k: use silhouette scoring if numClusters not specified and enough entries
+    if (!numClusters && entries.length >= 10) {
+      const result = findOptimalK(entries, 3, 10);
+      k = result.k;
+    } else if (!numClusters) {
+      k = Math.min(5, Math.floor(entries.length / 2));
+    } else {
+      k = Math.min(numClusters, Math.floor(entries.length / 2));
+    }
+
+    // Run k-means clustering
+    const clusterAssignments = clusterEmbeddings(entries, k);
+
+    if (onProgress) onProgress('Organizing clusters...', 40);
+
+    // Group entries by cluster
+    const clusterGroups = {};
+    for (const assignment of clusterAssignments) {
+      if (!clusterGroups[assignment.clusterId]) {
+        clusterGroups[assignment.clusterId] = [];
+      }
+      clusterGroups[assignment.clusterId].push(assignment.entryId);
+    }
+
+    // Update entry cluster assignments in database
+    await updateEntryClusters(clusterAssignments);
+
+    if (onProgress) onProgress('Removing old folders...', 50);
+
+    // Delete old cluster folders
+    const existingFolders = await getSmartFolders();
+    for (const folder of existingFolders) {
+      if (folder.type === 'cluster') {
+        await deleteSmartFolder(folder.id);
+      }
+    }
+
+    if (onProgress) onProgress('Generating labels...', 60);
+
+    // Create new cluster folders with labels
+    const clusterEntries = Object.entries(clusterGroups);
+    let processedClusters = 0;
+
+    for (const [clusterId, entryIds] of clusterEntries) {
+      if (entryIds.length < 2) {
+        processedClusters++;
+        continue;
+      }
+
+      // Get sample entries for labeling
+      const sampleEntries = await Promise.all(
+        entryIds.slice(0, 3).map(id => getJournalEntry(id))
+      );
+
+      // Generate label using LLM
+      const label = await labelCluster(sampleEntries);
+
+      // Create smart folder
+      await createSmartFolder(label, 'cluster', null, parseInt(clusterId));
+
+      processedClusters++;
+      const labelProgress = 60 + Math.floor((processedClusters / clusterEntries.length) * 30);
+      if (onProgress) onProgress('Creating folders...', labelProgress);
+    }
+
+    // Update last clustering timestamp
+    await setSetting('last_clustering_date', new Date().toISOString());
+
+    if (onProgress) onProgress('Complete', 100);
+  } catch (error) {
+    console.error('Error regenerating clusters:', error);
+    throw error;
+  }
+};

@@ -18,6 +18,10 @@ import {
   getFolderEntryCount,
 } from '../services/databaseService';
 import { deleteAudioFile } from '../services/audioService';
+import {
+  checkClusteringEligibility,
+  regenerateClustersWithProgress,
+} from '../services/clusteringService';
 import { COLORS, JOURNAL_MODES, SORT_OPTIONS, LIBRARY_TABS } from '../utils/constants';
 import { groupEntriesByTimePeriod } from '../utils/dateHelpers';
 
@@ -31,6 +35,8 @@ export default function JournalListScreen({ navigation }) {
   const [menuVisible, setMenuVisible] = useState(null);
   const [sortBy, setSortBy] = useState(SORT_OPTIONS.DATE_DESC);
   const [showSortMenu, setShowSortMenu] = useState(false);
+  const [regenerating, setRegenerating] = useState(false);
+  const [regenerateProgress, setRegenerateProgress] = useState('');
 
   useEffect(() => {
     loadSortPreference();
@@ -144,6 +150,53 @@ export default function JournalListScreen({ navigation }) {
         },
       ]
     );
+  };
+
+  const handleRegenerateClusters = async () => {
+    try {
+      // Check eligibility
+      const { eligible, reason, entryCount } = await checkClusteringEligibility();
+
+      if (!eligible) {
+        Alert.alert('Cannot Regenerate', reason);
+        return;
+      }
+
+      // Show confirmation
+      Alert.alert(
+        'Regenerate Smart Folders?',
+        `This will re-analyze ${entryCount} entries and recreate your smart folders. Existing cluster folders will be replaced.\n\nThis may take a few minutes.`,
+        [
+          { text: 'Cancel', style: 'cancel' },
+          {
+            text: 'Regenerate',
+            onPress: async () => {
+              setRegenerating(true);
+              setRegenerateProgress('Starting...');
+
+              try {
+                await regenerateClustersWithProgress((message, percentage) => {
+                  setRegenerateProgress(`${message} (${percentage}%)`);
+                });
+
+                setRegenerating(false);
+                setRegenerateProgress('');
+                await loadData(); // Refresh folders
+                Alert.alert('Success', 'Smart folders regenerated successfully!');
+              } catch (error) {
+                console.error('Regeneration error:', error);
+                setRegenerating(false);
+                setRegenerateProgress('');
+                Alert.alert('Error', 'Failed to regenerate folders: ' + error.message);
+              }
+            },
+          },
+        ]
+      );
+    } catch (error) {
+      console.error('Error checking eligibility:', error);
+      Alert.alert('Error', 'Failed to check clustering status');
+    }
   };
 
   const formatDate = (dateString) => {
@@ -322,30 +375,55 @@ export default function JournalListScreen({ navigation }) {
     }
 
     if (activeTab === LIBRARY_TABS.SMART_FOLDERS) {
-      if (smartFolders.length === 0) {
-        return (
-          <View style={styles.emptyContainer}>
-            <Text style={styles.emptyText}>No smart folders yet</Text>
-            <Text style={styles.emptySubtext}>
-              Folders will be created automatically as you add more entries
-            </Text>
-          </View>
-        );
-      }
-
       return (
         <View style={styles.listContent}>
-          <View style={styles.foldersGroupContainer}>
-            <FlatList
-              data={smartFolders}
-              renderItem={renderFolder}
-              keyExtractor={(item) => item.id.toString()}
-              refreshControl={
-                <RefreshControl refreshing={refreshing} onRefresh={handleRefresh} />
-              }
-              scrollEnabled={false}
-            />
+          {/* Regenerate Button Section */}
+          <View style={styles.regenerateButtonContainer}>
+            <TouchableOpacity
+              style={[
+                styles.regenerateButton,
+                (regenerating || smartFolders.length === 0) && styles.regenerateButtonDisabled
+              ]}
+              onPress={handleRegenerateClusters}
+              disabled={regenerating || smartFolders.length === 0}
+            >
+              <Text style={styles.regenerateButtonText}>
+                {regenerating ? 'Regenerating...' : 'Regenerate Folders'}
+              </Text>
+            </TouchableOpacity>
+
+            {regenerateProgress ? (
+              <Text style={styles.regenerateProgressText}>{regenerateProgress}</Text>
+            ) : null}
+
+            {smartFolders.length === 0 && !regenerating && (
+              <Text style={styles.regenerateWarningText}>
+                Create at least 3 journal entries to generate smart folders
+              </Text>
+            )}
           </View>
+
+          {/* Existing Folder List */}
+          {smartFolders.length === 0 ? (
+            <View style={styles.emptyContainer}>
+              <Text style={styles.emptyText}>No smart folders yet</Text>
+              <Text style={styles.emptySubtext}>
+                Folders will be created automatically as you add more entries
+              </Text>
+            </View>
+          ) : (
+            <View style={styles.foldersGroupContainer}>
+              <FlatList
+                data={smartFolders}
+                renderItem={renderFolder}
+                keyExtractor={(item) => item.id.toString()}
+                refreshControl={
+                  <RefreshControl refreshing={refreshing} onRefresh={handleRefresh} />
+                }
+                scrollEnabled={false}
+              />
+            </View>
+          )}
         </View>
       );
     }
@@ -802,5 +880,39 @@ const styles = StyleSheet.create({
     color: COLORS.text,
     fontWeight: '400',
     letterSpacing: 1,
+  },
+  regenerateButtonContainer: {
+    marginBottom: 20,
+  },
+  regenerateButton: {
+    backgroundColor: COLORS.primary,
+    paddingVertical: 12,
+    paddingHorizontal: 20,
+    alignItems: 'center',
+    borderWidth: 1,
+    borderColor: COLORS.border,
+  },
+  regenerateButtonDisabled: {
+    opacity: 0.4,
+  },
+  regenerateButtonText: {
+    fontSize: 12,
+    fontWeight: '400',
+    color: COLORS.card,
+    letterSpacing: 1,
+  },
+  regenerateProgressText: {
+    fontSize: 12,
+    color: COLORS.textSecondary,
+    fontWeight: '300',
+    textAlign: 'center',
+    marginTop: 10,
+  },
+  regenerateWarningText: {
+    fontSize: 12,
+    color: COLORS.textSecondary,
+    fontWeight: '300',
+    textAlign: 'center',
+    marginTop: 10,
   },
 });
