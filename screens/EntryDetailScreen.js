@@ -310,6 +310,7 @@ const styles = StyleSheet.create({
     marginBottom: 40,
     borderWidth: 1,
     borderColor: COLORS.border,
+    borderRadius: 8,
   },
   audioButtonText: {
     fontSize: 13,
@@ -393,6 +394,7 @@ const styles = StyleSheet.create({
     marginTop: 40,
     borderWidth: 1,
     borderColor: COLORS.border,
+    borderRadius: 8,
   },
   deleteButtonText: {
     fontSize: 13,

@@ -563,6 +563,7 @@ const styles = StyleSheet.create({
     marginTop: 20,
     borderWidth: 1,
     borderColor: COLORS.border,
+    borderRadius: 8,
   },
   finishButtonDark: {
     backgroundColor: '#FFFFFF',
@@ -585,6 +586,7 @@ const styles = StyleSheet.create({
   entriesButton: {
     paddingVertical: 12,
     paddingHorizontal: 30,
+    borderRadius: 8,
   },
   entriesButtonDark: {
   },

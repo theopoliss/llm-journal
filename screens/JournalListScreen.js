@@ -8,11 +8,10 @@ import {
   Alert,
   RefreshControl,
 } from 'react-native';
+import { Feather } from '@expo/vector-icons';
 import {
   getJournalEntriesSorted,
   deleteJournalEntry,
-  getSetting,
-  setSetting,
   getSmartFolders,
   getManualFolders,
   getFolderEntryCount,
@@ -33,14 +32,8 @@ export default function JournalListScreen({ navigation }) {
   const [manualFolders, setManualFolders] = useState([]);
   const [refreshing, setRefreshing] = useState(false);
   const [menuVisible, setMenuVisible] = useState(null);
-  const [sortBy, setSortBy] = useState(SORT_OPTIONS.DATE_DESC);
-  const [showSortMenu, setShowSortMenu] = useState(false);
   const [regenerating, setRegenerating] = useState(false);
   const [regenerateProgress, setRegenerateProgress] = useState('');
-
-  useEffect(() => {
-    loadSortPreference();
-  }, []);
 
   useEffect(() => {
     loadData();
@@ -51,27 +44,16 @@ export default function JournalListScreen({ navigation }) {
     });
 
     return unsubscribe;
-  }, [navigation, sortBy, activeTab]);
-
-  const loadSortPreference = async () => {
-    try {
-      const savedSort = await getSetting('sort_preference');
-      if (savedSort && SORT_OPTIONS[savedSort.toUpperCase()]) {
-        setSortBy(savedSort);
-      }
-    } catch (error) {
-      console.error('Error loading sort preference:', error);
-    }
-  };
+  }, [navigation, activeTab]);
 
   const loadData = async () => {
     try {
       if (activeTab === LIBRARY_TABS.ALL) {
-        const data = await getJournalEntriesSorted(sortBy);
+        const data = await getJournalEntriesSorted(SORT_OPTIONS.DATE_DESC);
         setEntries(data);
 
         // Generate grouped data for SectionList
-        const grouped = groupEntriesByTimePeriod(data, sortBy);
+        const grouped = groupEntriesByTimePeriod(data, SORT_OPTIONS.DATE_DESC);
         setGroupedEntries(grouped);
       } else if (activeTab === LIBRARY_TABS.SMART_FOLDERS) {
         const folders = await getSmartFolders();
@@ -99,17 +81,6 @@ export default function JournalListScreen({ navigation }) {
     }
   };
 
-  const handleSortChange = async (newSort) => {
-    setSortBy(newSort);
-    setShowSortMenu(false);
-    try {
-      await setSetting('sort_preference', newSort);
-      await loadData();
-    } catch (error) {
-      console.error('Error changing sort:', error);
-    }
-  };
-
   const handleRefresh = async () => {
     setRefreshing(true);
     await loadData();
@@ -118,7 +89,6 @@ export default function JournalListScreen({ navigation }) {
 
   const handleTabChange = (tab) => {
     setActiveTab(tab);
-    setShowSortMenu(false);
   };
 
   const handleMenuPress = (entryId) => {
@@ -298,10 +268,6 @@ export default function JournalListScreen({ navigation }) {
     );
   };
 
-  const getSortLabel = (sort) => {
-    return sort === SORT_OPTIONS.DATE_ASC ? 'Oldest First' : 'Newest First';
-  };
-
   const renderFolder = ({ item, index }) => {
     const folders = activeTab === LIBRARY_TABS.SMART_FOLDERS ? smartFolders : manualFolders;
     const isLastItem = index === folders.length - 1;
@@ -467,52 +433,16 @@ export default function JournalListScreen({ navigation }) {
         >
           <Text style={styles.backButtonText}>← Back</Text>
         </TouchableOpacity>
-        <Text style={styles.title}>Journal Entries</Text>
-        <View style={styles.headerControls}>
+        <View style={styles.titleRow}>
+          <Text style={styles.title}>Journal Entries</Text>
           <TouchableOpacity
-            style={styles.searchButton}
+            style={styles.searchIcon}
             onPress={() => navigation.navigate('Search')}
           >
-            <Text style={styles.searchButtonText}>Search</Text>
-          </TouchableOpacity>
-          <TouchableOpacity
-            style={styles.sortButton}
-            onPress={() => setShowSortMenu(!showSortMenu)}
-          >
-            <Text style={styles.sortButtonText}>{getSortLabel(sortBy)}</Text>
-            <Text style={styles.sortButtonIcon}>{showSortMenu ? '▲' : '▼'}</Text>
+            <Feather name="search" size={18} color={COLORS.text} />
           </TouchableOpacity>
         </View>
       </View>
-
-      {showSortMenu && (
-        <>
-          <TouchableOpacity
-            style={styles.sortMenuBackdrop}
-            onPress={() => setShowSortMenu(false)}
-            activeOpacity={1}
-          />
-          <View style={styles.sortMenuDropdown}>
-            {Object.values(SORT_OPTIONS).map((option) => (
-              <TouchableOpacity
-                key={option}
-                style={[
-                  styles.sortMenuItem,
-                  sortBy === option && styles.sortMenuItemActive
-                ]}
-                onPress={() => handleSortChange(option)}
-              >
-                <Text style={[
-                  styles.sortMenuItemText,
-                  sortBy === option && styles.sortMenuItemTextActive
-                ]}>
-                  {getSortLabel(option)}
-                </Text>
-              </TouchableOpacity>
-            ))}
-          </View>
-        </>
-      )}
 
       {/* Tab Bar */}
       <View style={styles.tabBar}>
@@ -547,10 +477,8 @@ const styles = StyleSheet.create({
   header: {
     paddingTop: 60,
     paddingHorizontal: 40,
-    paddingBottom: 30,
+    paddingBottom: 9,
     backgroundColor: COLORS.background,
-    borderBottomWidth: 1,
-    borderBottomColor: COLORS.border,
   },
   backButton: {
     alignSelf: 'flex-start',
@@ -562,95 +490,29 @@ const styles = StyleSheet.create({
     fontWeight: '400',
     letterSpacing: 1,
   },
+  titleRow: {
+    flexDirection: 'row',
+    justifyContent: 'space-between',
+    alignItems: 'center',
+  },
   title: {
     fontSize: 20,
     fontWeight: '300',
     color: COLORS.text,
-    marginBottom: 20,
     letterSpacing: 2,
   },
-  headerControls: {
-    flexDirection: 'row',
-    alignItems: 'center',
-    gap: 12,
-  },
-  searchButton: {
-    paddingHorizontal: 12,
-    paddingVertical: 6,
-    borderWidth: 1,
-    borderColor: COLORS.border,
-    backgroundColor: COLORS.background,
-  },
-  searchButtonText: {
-    fontSize: 12,
-    color: COLORS.text,
-    fontWeight: '400',
-    letterSpacing: 0.5,
-  },
-  sortButton: {
-    flexDirection: 'row',
-    alignItems: 'center',
-    paddingHorizontal: 12,
-    paddingVertical: 6,
-    borderWidth: 1,
-    borderColor: COLORS.border,
-    backgroundColor: COLORS.background,
-    gap: 8,
-  },
-  sortButtonText: {
-    fontSize: 12,
-    color: COLORS.text,
-    fontWeight: '400',
-    letterSpacing: 0.5,
-  },
-  sortButtonIcon: {
-    fontSize: 8,
-    color: COLORS.text,
-  },
-  sortMenuBackdrop: {
-    position: 'absolute',
-    top: 0,
-    left: 0,
-    right: 0,
-    bottom: 0,
-    zIndex: 999,
-  },
-  sortMenuDropdown: {
-    position: 'absolute',
-    top: 150,
-    left: 40,
-    backgroundColor: COLORS.background,
-    borderWidth: 1,
-    borderColor: COLORS.border,
-    minWidth: 140,
-    zIndex: 1000,
-  },
-  sortMenuItem: {
-    paddingVertical: 12,
-    paddingHorizontal: 16,
-    borderBottomWidth: 1,
-    borderBottomColor: COLORS.border,
-  },
-  sortMenuItemActive: {
-    backgroundColor: COLORS.primary,
-  },
-  sortMenuItemText: {
-    fontSize: 13,
-    color: COLORS.text,
-    fontWeight: '400',
-    letterSpacing: 0.5,
-  },
-  sortMenuItemTextActive: {
-    color: COLORS.card,
+  searchIcon: {
+    padding: 8,
   },
   tabBar: {
     flexDirection: 'row',
     borderBottomWidth: 1,
     borderBottomColor: COLORS.border,
     backgroundColor: COLORS.background,
+    paddingLeft: 20,
   },
   tab: {
-    flex: 1,
+    paddingHorizontal: 20,
     paddingVertical: 14,
     alignItems: 'center',
     borderBottomWidth: 2,
@@ -891,6 +753,7 @@ const styles = StyleSheet.create({
     alignItems: 'center',
     borderWidth: 1,
     borderColor: COLORS.border,
+    borderRadius: 8,
   },
   regenerateButtonDisabled: {
     opacity: 0.4,

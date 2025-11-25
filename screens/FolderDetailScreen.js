@@ -306,6 +306,7 @@ const styles = StyleSheet.create({
     paddingVertical: 6,
     borderWidth: 1,
     borderColor: COLORS.border,
+    borderRadius: 8,
   },
   editButtonText: {
     fontSize: 12,

@@ -354,6 +354,7 @@ const styles = StyleSheet.create({
     color: COLORS.text,
     marginBottom: 15,
     fontWeight: '400',
+    borderRadius: 8,
   },
   buttonContainer: {
     flexDirection: 'row',
@@ -366,6 +367,7 @@ const styles = StyleSheet.create({
     alignItems: 'center',
     borderWidth: 1,
     borderColor: COLORS.border,
+    borderRadius: 8,
   },
   saveButtonDisabled: {
     opacity: 0.5,
@@ -383,6 +385,7 @@ const styles = StyleSheet.create({
     alignItems: 'center',
     borderWidth: 1,
     borderColor: COLORS.border,
+    borderRadius: 8,
   },
   clearButtonText: {
     fontSize: 13,

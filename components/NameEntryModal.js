@@ -101,6 +101,7 @@ const styles = StyleSheet.create({
     color: COLORS.text,
     fontWeight: '300',
     marginBottom: 30,
+    borderRadius: 8,
   },
   buttonContainer: {
     flexDirection: 'row',
@@ -112,6 +113,7 @@ const styles = StyleSheet.create({
     alignItems: 'center',
     borderWidth: 1,
     borderColor: COLORS.border,
+    borderRadius: 8,
   },
   skipButton: {
     backgroundColor: COLORS.background,

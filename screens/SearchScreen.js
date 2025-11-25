@@ -360,6 +360,7 @@ const styles = StyleSheet.create({
     paddingVertical: 12,
     backgroundColor: COLORS.background,
     fontWeight: '300',
+    borderRadius: 8,
   },
   modeSelector: {
     flexDirection: 'row',
@@ -375,6 +376,7 @@ const styles = StyleSheet.create({
     borderWidth: 1,
     borderColor: COLORS.border,
     backgroundColor: COLORS.background,
+    borderRadius: 8,
   },
   modeButtonActive: {
     backgroundColor: COLORS.primary,
@@ -562,6 +564,7 @@ const styles = StyleSheet.create({
     backgroundColor: COLORS.background,
     borderWidth: 1,
     borderColor: COLORS.border,
+    borderRadius: 8,
   },
   suggestionChipText: {
     fontSize: 12,
