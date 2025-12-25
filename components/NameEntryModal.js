@@ -9,9 +9,10 @@ import {
   KeyboardAvoidingView,
   Platform,
 } from 'react-native';
-import { COLORS } from '../utils/constants';
+import { COLORS, JOURNAL_MODES } from '../utils/constants';
 
-export default function NameEntryModal({ visible, onSave, onSkip }) {
+export default function NameEntryModal({ visible, onSave, onSkip, mode }) {
+  const isDark = mode === JOURNAL_MODES.CONVERSATIONAL;
   const [name, setName] = useState('');
 
   const handleSave = () => {
@@ -37,30 +38,30 @@ export default function NameEntryModal({ visible, onSave, onSkip }) {
         behavior={Platform.OS === 'ios' ? 'padding' : 'height'}
         style={styles.modalOverlay}
       >
-        <View style={styles.modalContent}>
-          <Text style={styles.modalTitle}>Name this entry</Text>
+        <View style={[styles.modalContent, isDark && styles.modalContentDark]}>
+          <Text style={[styles.modalTitle, isDark && styles.modalTitleDark]}>Name this entry</Text>
           <TextInput
-            style={styles.input}
+            style={[styles.input, isDark && styles.inputDark]}
             value={name}
             onChangeText={setName}
             placeholder="Enter a name"
-            placeholderTextColor={COLORS.textSecondary}
+            placeholderTextColor={isDark ? '#888888' : COLORS.textSecondary}
             autoFocus={true}
             onSubmitEditing={handleSave}
             returnKeyType="done"
           />
           <View style={styles.buttonContainer}>
             <TouchableOpacity
-              style={[styles.button, styles.skipButton]}
+              style={[styles.button, styles.skipButton, isDark && styles.skipButtonDark]}
               onPress={handleSkip}
             >
-              <Text style={styles.skipButtonText}>Skip</Text>
+              <Text style={[styles.skipButtonText, isDark && styles.skipButtonTextDark]}>Skip</Text>
             </TouchableOpacity>
             <TouchableOpacity
-              style={[styles.button, styles.saveButton]}
+              style={[styles.button, styles.saveButton, isDark && styles.saveButtonDark]}
               onPress={handleSave}
             >
-              <Text style={styles.saveButtonText}>Save</Text>
+              <Text style={[styles.saveButtonText, isDark && styles.saveButtonTextDark]}>Save</Text>
             </TouchableOpacity>
           </View>
         </View>
@@ -83,6 +84,11 @@ const styles = StyleSheet.create({
     maxWidth: 400,
     borderWidth: 1,
     borderColor: COLORS.border,
+    borderRadius: 8,
+  },
+  modalContentDark: {
+    backgroundColor: '#000000',
+    borderColor: '#FFFFFF',
   },
   modalTitle: {
     fontSize: 16,
@@ -91,6 +97,9 @@ const styles = StyleSheet.create({
     marginBottom: 30,
     letterSpacing: 1,
     textAlign: 'center',
+  },
+  modalTitleDark: {
+    color: '#FFFFFF',
   },
   input: {
     backgroundColor: COLORS.background,
@@ -102,6 +111,11 @@ const styles = StyleSheet.create({
     fontWeight: '300',
     marginBottom: 30,
     borderRadius: 8,
+  },
+  inputDark: {
+    backgroundColor: '#000000',
+    borderColor: '#FFFFFF',
+    color: '#FFFFFF',
   },
   buttonContainer: {
     flexDirection: 'row',
@@ -118,19 +132,33 @@ const styles = StyleSheet.create({
   skipButton: {
     backgroundColor: COLORS.background,
   },
+  skipButtonDark: {
+    backgroundColor: '#000000',
+    borderColor: '#FFFFFF',
+  },
   skipButtonText: {
     fontSize: 13,
     fontWeight: '400',
     color: COLORS.text,
     letterSpacing: 1,
   },
+  skipButtonTextDark: {
+    color: '#FFFFFF',
+  },
   saveButton: {
     backgroundColor: COLORS.primary,
+  },
+  saveButtonDark: {
+    backgroundColor: '#FFFFFF',
+    borderColor: '#FFFFFF',
   },
   saveButtonText: {
     fontSize: 13,
     fontWeight: '400',
     color: COLORS.card,
     letterSpacing: 1,
+  },
+  saveButtonTextDark: {
+    color: '#000000',
   },
 });

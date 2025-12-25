@@ -458,6 +458,7 @@ const styles = StyleSheet.create({
     paddingVertical: 3,
     borderWidth: 1,
     borderColor: COLORS.border,
+    borderRadius: 4,
   },
   modeBadgeSolo: {
     backgroundColor: COLORS.card,
@@ -514,6 +515,7 @@ const styles = StyleSheet.create({
     backgroundColor: COLORS.background,
     borderWidth: 1,
     borderColor: COLORS.border,
+    borderRadius: 4,
   },
   matchTypeText: {
     fontSize: 9,

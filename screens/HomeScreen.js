@@ -380,35 +380,37 @@ export default function HomeScreen({ navigation }) {
           </View>
         )}
 
-        {/* Recording Button */}
-        <View style={styles.recordingContainer}>
-          <TouchableOpacity
-            onPress={isRecording ? handleStopRecording : handleStartRecording}
-            disabled={isProcessing}
-          >
-            <Animated.View style={{ opacity: isProcessing ? processingPulseAnim : 1 }}>
-              <Animated.View
-                style={[
-                  styles.recordButton,
-                  {
-                    borderRadius: buttonShapeAnim,
-                    width: buttonWidthAnim,
-                    height: buttonHeightAnim,
-                  },
-                  mode === JOURNAL_MODES.CONVERSATIONAL && styles.recordButtonDark,
-                  isRecording && styles.recordButtonActive,
-                  mode === JOURNAL_MODES.CONVERSATIONAL && isRecording && styles.recordButtonActiveDark,
-                ]}
-              >
-                {!isProcessing && (
-                  <Text style={[styles.recordButtonText, mode === JOURNAL_MODES.CONVERSATIONAL && styles.recordButtonTextDark]}>
-                    {isRecording ? 'Stop' : 'Record'}
-                  </Text>
-                )}
+        {/* Recording Button - only show in ScrollView when NOT processing in conversational mode */}
+        {!(mode === JOURNAL_MODES.CONVERSATIONAL && isProcessing) && (
+          <View style={styles.recordingContainer}>
+            <TouchableOpacity
+              onPress={isRecording ? handleStopRecording : handleStartRecording}
+              disabled={isProcessing}
+            >
+              <Animated.View style={{ opacity: isProcessing ? processingPulseAnim : 1 }}>
+                <Animated.View
+                  style={[
+                    styles.recordButton,
+                    {
+                      borderRadius: buttonShapeAnim,
+                      width: buttonWidthAnim,
+                      height: buttonHeightAnim,
+                    },
+                    mode === JOURNAL_MODES.CONVERSATIONAL && styles.recordButtonDark,
+                    isRecording && styles.recordButtonActive,
+                    mode === JOURNAL_MODES.CONVERSATIONAL && isRecording && styles.recordButtonActiveDark,
+                  ]}
+                >
+                  {!isProcessing && (
+                    <Text style={[styles.recordButtonText, mode === JOURNAL_MODES.CONVERSATIONAL && styles.recordButtonTextDark]}>
+                      {isRecording ? 'Stop' : 'Record'}
+                    </Text>
+                  )}
+                </Animated.View>
               </Animated.View>
-            </Animated.View>
-          </TouchableOpacity>
-        </View>
+            </TouchableOpacity>
+          </View>
+        )}
 
         {/* Conversational Mode Controls */}
         {mode === JOURNAL_MODES.CONVERSATIONAL && currentEntryId && !isProcessing && (
@@ -420,26 +422,61 @@ export default function HomeScreen({ navigation }) {
           </TouchableOpacity>
         )}
 
-        {/* Subtle Entries Button */}
-        <View style={styles.entriesButtonContainer}>
+        {/* Spacer when processing bar is fixed at bottom */}
+        {mode === JOURNAL_MODES.CONVERSATIONAL && isProcessing && (
+          <View style={styles.processingSpacerInScroll} />
+        )}
+
+        {/* Subtle Entries Button - only in ScrollView when NOT processing in conversational mode */}
+        {!(mode === JOURNAL_MODES.CONVERSATIONAL && isProcessing) && (
+          <View style={styles.entriesButtonContainer}>
+            <TouchableOpacity
+              onPress={() => navigation.navigate('JournalList')}
+              style={[
+                styles.entriesButton,
+                mode === JOURNAL_MODES.CONVERSATIONAL && styles.entriesButtonDark
+              ]}
+            >
+              <Text style={[styles.entriesButtonText, mode === JOURNAL_MODES.CONVERSATIONAL && styles.entriesButtonTextDark]}>
+                ···
+              </Text>
+            </TouchableOpacity>
+          </View>
+        )}
+      </ScrollView>
+
+      {/* Fixed Loading Bar and Entries Button for Conversational Processing */}
+      {mode === JOURNAL_MODES.CONVERSATIONAL && isProcessing && (
+        <View style={styles.fixedBottomContainer}>
+          <Animated.View style={{ opacity: processingPulseAnim }}>
+            <Animated.View
+              style={[
+                styles.recordButton,
+                styles.recordButtonDark,
+                {
+                  borderRadius: buttonShapeAnim,
+                  width: buttonWidthAnim,
+                  height: buttonHeightAnim,
+                },
+              ]}
+            />
+          </Animated.View>
           <TouchableOpacity
             onPress={() => navigation.navigate('JournalList')}
-            style={[
-              styles.entriesButton,
-              mode === JOURNAL_MODES.CONVERSATIONAL && styles.entriesButtonDark
-            ]}
+            style={[styles.entriesButton, styles.entriesButtonDark, styles.fixedEntriesButton]}
           >
-            <Text style={[styles.entriesButtonText, mode === JOURNAL_MODES.CONVERSATIONAL && styles.entriesButtonTextDark]}>
+            <Text style={[styles.entriesButtonText, styles.entriesButtonTextDark]}>
               ···
             </Text>
           </TouchableOpacity>
         </View>
-      </ScrollView>
+      )}
 
       <NameEntryModal
         visible={showNameModal}
         onSave={handleSaveName}
         onSkip={handleSkipName}
+        mode={mode}
       />
     </View>
   );
@@ -463,13 +500,13 @@ const styles = StyleSheet.create({
   scrollContent: {
     flexGrow: 1,
     padding: 40,
-    paddingTop: 80,
+    paddingTop: 60,
   },
   title: {
     fontSize: 24,
     fontWeight: '300',
     textAlign: 'center',
-    marginBottom: 60,
+    marginBottom: 30,
     color: COLORS.text,
     letterSpacing: 2,
   },
@@ -480,7 +517,7 @@ const styles = StyleSheet.create({
     height: 30,
     justifyContent: 'center',
     alignItems: 'center',
-    marginBottom: 40,
+    marginBottom: 20,
   },
   recordingIndicator: {
     flexDirection: 'row',
@@ -509,6 +546,7 @@ const styles = StyleSheet.create({
     borderWidth: 1,
     borderColor: COLORS.border,
     minHeight: 60,
+    borderRadius: 8,
   },
   responseContainerDark: {
     backgroundColor: '#000000',
@@ -536,6 +574,7 @@ const styles = StyleSheet.create({
     borderColor: COLORS.border,
   },
   recordButtonDark: {
+    backgroundColor: '#FFFFFF',
     borderColor: '#FFFFFF',
   },
   recordButtonActive: {
@@ -553,7 +592,7 @@ const styles = StyleSheet.create({
     letterSpacing: 2,
   },
   recordButtonTextDark: {
-    color: '#FFFFFF',
+    color: '#000000',
   },
   finishButton: {
     backgroundColor: COLORS.primary,
@@ -598,5 +637,18 @@ const styles = StyleSheet.create({
   },
   entriesButtonTextDark: {
     color: '#FFFFFF',
+  },
+  fixedBottomContainer: {
+    position: 'absolute',
+    bottom: 100,
+    left: 0,
+    right: 0,
+    alignItems: 'center',
+  },
+  fixedEntriesButton: {
+    marginTop: 20,
+  },
+  processingSpacerInScroll: {
+    height: 120,
   },
 });
