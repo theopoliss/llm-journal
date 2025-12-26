@@ -46,6 +46,21 @@ export default function JournalListScreen({ navigation }) {
     return unsubscribe;
   }, [navigation, activeTab]);
 
+  // Auto-refresh while there are processing entries
+  useEffect(() => {
+    if (activeTab !== LIBRARY_TABS.ALL) return;
+
+    const hasProcessingEntries = entries.some(entry => !entry.summary);
+
+    if (hasProcessingEntries) {
+      const timer = setTimeout(() => {
+        loadData();
+      }, 2500);
+
+      return () => clearTimeout(timer);
+    }
+  }, [entries, activeTab]);
+
   const loadData = async () => {
     try {
       if (activeTab === LIBRARY_TABS.ALL) {

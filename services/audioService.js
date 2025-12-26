@@ -67,7 +67,7 @@ export const stopRecording = async () => {
   }
 };
 
-export const playAudio = async (uri) => {
+export const playAudio = async (uri, onStatusUpdate) => {
   try {
     if (sound) {
       await sound.unloadAsync();
@@ -81,6 +81,11 @@ export const playAudio = async (uri) => {
     sound = newSound;
 
     sound.setOnPlaybackStatusUpdate((status) => {
+      // Call external callback if provided
+      if (onStatusUpdate) {
+        onStatusUpdate(status);
+      }
+      // Handle finish
       if (status.didJustFinish) {
         sound.unloadAsync();
         sound = null;
@@ -117,6 +122,17 @@ export const resumeAudio = async () => {
   }
 };
 
+export const seekTo = async (positionMillis) => {
+  try {
+    if (sound) {
+      await sound.setPositionAsync(positionMillis);
+    }
+  } catch (error) {
+    console.error('Failed to seek audio:', error);
+    throw error;
+  }
+};
+
 export const stopAudio = async () => {
   try {
     if (sound) {
@@ -125,8 +141,8 @@ export const stopAudio = async () => {
       sound = null;
     }
   } catch (error) {
-    console.error('Failed to stop audio:', error);
-    throw error;
+    // Silently handle errors - common during cleanup when seeking is interrupted
+    sound = null;
   }
 };
 

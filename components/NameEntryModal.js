@@ -1,4 +1,4 @@
-import React, { useState } from 'react';
+import React, { useState, useEffect } from 'react';
 import {
   Modal,
   View,
@@ -11,9 +11,16 @@ import {
 } from 'react-native';
 import { COLORS, JOURNAL_MODES } from '../utils/constants';
 
-export default function NameEntryModal({ visible, onSave, onSkip, mode }) {
+export default function NameEntryModal({ visible, onSave, onSkip, mode, initialName = '' }) {
   const isDark = mode === JOURNAL_MODES.CONVERSATIONAL;
-  const [name, setName] = useState('');
+  const [name, setName] = useState(initialName);
+
+  // Reset to initialName when modal opens
+  useEffect(() => {
+    if (visible) {
+      setName(initialName || '');
+    }
+  }, [visible, initialName]);
 
   const handleSave = () => {
     if (name.trim()) {

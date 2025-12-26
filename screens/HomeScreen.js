@@ -36,11 +36,33 @@ export default function HomeScreen({ navigation }) {
   const [blinkAnim] = useState(new Animated.Value(1));
   const [currentResponse, setCurrentResponse] = useState('');
   const [buttonShapeAnim] = useState(new Animated.Value(60)); // 60 = circle, 0 = square
-  const [buttonWidthAnim] = useState(new Animated.Value(120)); // 120 = normal, 140 = horizontal bar
-  const [buttonHeightAnim] = useState(new Animated.Value(120)); // 120 = normal, 10 = horizontal bar
-  const [processingPulseAnim] = useState(new Animated.Value(1)); // opacity pulse during processing
   const [showNameModal, setShowNameModal] = useState(false);
   const [pendingEntryId, setPendingEntryId] = useState(null);
+  const [pendingAudioUri, setPendingAudioUri] = useState(null);
+  const [pendingConversationHistory, setPendingConversationHistory] = useState([]);
+  const [elapsedSeconds, setElapsedSeconds] = useState(0);
+
+  // Recording timer
+  useEffect(() => {
+    let interval = null;
+    if (recordingState === RECORDING_STATES.RECORDING) {
+      setElapsedSeconds(0);
+      interval = setInterval(() => {
+        setElapsedSeconds(prev => prev + 1);
+      }, 1000);
+    } else {
+      setElapsedSeconds(0);
+    }
+    return () => {
+      if (interval) clearInterval(interval);
+    };
+  }, [recordingState]);
+
+  const formatElapsedTime = (seconds) => {
+    const mins = Math.floor(seconds / 60);
+    const secs = seconds % 60;
+    return `${mins}:${secs.toString().padStart(2, '0')}`;
+  };
 
   // Swipe gesture handler
   const panResponder = PanResponder.create({
@@ -63,9 +85,6 @@ export default function HomeScreen({ navigation }) {
   });
 
   useEffect(() => {
-    const isProcessing = recordingState === RECORDING_STATES.PROCESSING ||
-                        recordingState === RECORDING_STATES.WAITING_FOR_RESPONSE;
-
     if (recordingState === RECORDING_STATES.RECORDING) {
       // Start blinking animation
       Animated.loop(
@@ -83,81 +102,20 @@ export default function HomeScreen({ navigation }) {
         ])
       ).start();
       // Morph to square
-      Animated.parallel([
-        Animated.timing(buttonShapeAnim, {
-          toValue: 0,
-          duration: 300,
-          useNativeDriver: false,
-        }),
-        Animated.timing(buttonWidthAnim, {
-          toValue: 120,
-          duration: 300,
-          useNativeDriver: false,
-        }),
-        Animated.timing(buttonHeightAnim, {
-          toValue: 120,
-          duration: 300,
-          useNativeDriver: false,
-        }),
-      ]).start();
-    } else if (isProcessing) {
-      // Stop blinking
-      blinkAnim.setValue(1);
-      // Morph to horizontal bar
-      Animated.parallel([
-        Animated.timing(buttonShapeAnim, {
-          toValue: 0,
-          duration: 300,
-          useNativeDriver: false,
-        }),
-        Animated.timing(buttonWidthAnim, {
-          toValue: 140,
-          duration: 300,
-          useNativeDriver: false,
-        }),
-        Animated.timing(buttonHeightAnim, {
-          toValue: 10,
-          duration: 300,
-          useNativeDriver: false,
-        }),
-      ]).start();
-      // Start pulsing animation
-      Animated.loop(
-        Animated.sequence([
-          Animated.timing(processingPulseAnim, {
-            toValue: 0.4,
-            duration: 1000,
-            useNativeDriver: true,
-          }),
-          Animated.timing(processingPulseAnim, {
-            toValue: 1,
-            duration: 1000,
-            useNativeDriver: true,
-          }),
-        ])
-      ).start();
+      Animated.timing(buttonShapeAnim, {
+        toValue: 0,
+        duration: 300,
+        useNativeDriver: false,
+      }).start();
     } else {
-      // Stop animations
+      // Stop blinking animation
       blinkAnim.setValue(1);
-      processingPulseAnim.setValue(1);
       // Morph back to circle
-      Animated.parallel([
-        Animated.timing(buttonShapeAnim, {
-          toValue: 60,
-          duration: 300,
-          useNativeDriver: false,
-        }),
-        Animated.timing(buttonWidthAnim, {
-          toValue: 120,
-          duration: 300,
-          useNativeDriver: false,
-        }),
-        Animated.timing(buttonHeightAnim, {
-          toValue: 120,
-          duration: 300,
-          useNativeDriver: false,
-        }),
-      ]).start();
+      Animated.timing(buttonShapeAnim, {
+        toValue: 60,
+        duration: 300,
+        useNativeDriver: false,
+      }).start();
     }
   }, [recordingState]);
 
@@ -188,36 +146,23 @@ export default function HomeScreen({ navigation }) {
         setCurrentEntryId(entryId);
       }
 
-      // Transcribe audio
-      setStatusMessage('Transcribing...');
-      const transcript = await transcribeAudio(uri);
-
       if (mode === JOURNAL_MODES.SOLO) {
-        // Solo mode: save transcript, generate summary, embedding, and topics
-        await updateJournalEntry(entryId, {
-          transcript,
-        });
-
-        setStatusMessage('Generating summary...');
-        const summary = await generateSummary(transcript);
-        await updateJournalEntry(entryId, { summary });
-
-        // Generate embedding and topics in background (don't block UI)
-        generateEmbeddingAndTopics(entryId, transcript).catch(err => {
-          console.error('Background processing error:', err);
-        });
-
+        // Solo mode: show name modal immediately, process in background
         setRecordingState(RECORDING_STATES.IDLE);
         setStatusMessage('');
         setCurrentEntryId(null);
         setAudioUri(null);
 
-        // Show name entry modal
+        // Show name entry modal - processing will happen after navigation
         setPendingEntryId(entryId);
+        setPendingAudioUri(uri);
         setShowNameModal(true);
       } else {
-        // Conversational mode: send to LLM
-        await addConversationMessage(entryId, 'user', transcript);
+        // Conversational mode: transcribe and send to LLM
+        setStatusMessage('Transcribing...');
+        const transcript = await transcribeAudio(uri);
+
+        await addConversationMessage(entryId, 'user', transcript, uri);
         const updatedHistory = [...conversationHistory, { role: 'user', content: transcript }];
         setConversationHistory(updatedHistory);
 
@@ -241,6 +186,54 @@ export default function HomeScreen({ navigation }) {
       Alert.alert('Error', 'Failed to process recording: ' + error.message);
       setRecordingState(RECORDING_STATES.IDLE);
       setStatusMessage('');
+    }
+  };
+
+  // Background processing for solo mode entries
+  const processSoloEntryInBackground = async (entryId, audioUri) => {
+    try {
+      console.log('Background processing started for entry', entryId);
+
+      // Transcribe audio
+      const transcript = await transcribeAudio(audioUri);
+      await updateJournalEntry(entryId, { transcript });
+
+      // Generate summary
+      const summary = await generateSummary(transcript);
+      await updateJournalEntry(entryId, { summary });
+
+      // Generate embedding and topics
+      await generateEmbeddingAndTopics(entryId, transcript);
+
+      console.log('Background processing completed for entry', entryId);
+    } catch (error) {
+      console.error('Background processing error for entry', entryId, ':', error);
+      // Entry stays with null summary indicating processing failed
+    }
+  };
+
+  // Background processing for conversational mode entries
+  const processConversationInBackground = async (entryId, messages) => {
+    try {
+      console.log('Background processing started for conversation', entryId);
+
+      const { generateConversationSummary } = require('../services/llmService');
+      const summary = await generateConversationSummary(messages);
+
+      // Combine all messages into a transcript
+      const transcript = messages
+        .map((msg) => `${msg.role === 'user' ? 'You' : 'Assistant'}: ${msg.content}`)
+        .join('\n\n');
+
+      await updateJournalEntry(entryId, { transcript, summary });
+
+      // Generate embedding and topics
+      await generateEmbeddingAndTopics(entryId, transcript);
+
+      console.log('Background processing completed for conversation', entryId);
+    } catch (error) {
+      console.error('Background processing error for conversation', entryId, ':', error);
+      // Entry stays with null summary indicating processing failed
     }
   };
 
@@ -275,61 +268,79 @@ export default function HomeScreen({ navigation }) {
   };
 
   const handleFinishConversation = async () => {
-    try {
-      if (!currentEntryId) {
-        return;
-      }
-
-      setStatusMessage('Generating summary...');
-      const { generateConversationSummary } = require('../services/llmService');
-      const summary = await generateConversationSummary(conversationHistory);
-
-      // Combine all messages into a transcript
-      const transcript = conversationHistory
-        .map((msg) => `${msg.role === 'user' ? 'You' : 'Assistant'}: ${msg.content}`)
-        .join('\n\n');
-
-      await updateJournalEntry(currentEntryId, { transcript, summary });
-
-      // Generate embedding and topics in background
-      generateEmbeddingAndTopics(currentEntryId, transcript).catch(err => {
-        console.error('Background processing error:', err);
-      });
-
-      const savedEntryId = currentEntryId;
-      setRecordingState(RECORDING_STATES.IDLE);
-      setStatusMessage('');
-      setCurrentEntryId(null);
-      setConversationHistory([]);
-      setAudioUri(null);
-      setCurrentResponse('');
-
-      // Show name entry modal
-      setPendingEntryId(savedEntryId);
-      setShowNameModal(true);
-    } catch (error) {
-      console.error('Error finishing conversation:', error);
-      Alert.alert('Error', 'Failed to save conversation: ' + error.message);
+    if (!currentEntryId) {
+      return;
     }
+
+    // Show name modal immediately - processing will happen after navigation
+    const savedEntryId = currentEntryId;
+    const savedHistory = [...conversationHistory];
+
+    setRecordingState(RECORDING_STATES.IDLE);
+    setStatusMessage('');
+    setCurrentEntryId(null);
+    setConversationHistory([]);
+    setAudioUri(null);
+    setCurrentResponse('');
+
+    // Show name entry modal
+    setPendingEntryId(savedEntryId);
+    setPendingConversationHistory(savedHistory);
+    setShowNameModal(true);
   };
 
   const handleSaveName = async (name) => {
-    if (pendingEntryId) {
-      await updateJournalEntry(pendingEntryId, { name });
-    }
-    setShowNameModal(false);
     const entryId = pendingEntryId;
+    const audioUri = pendingAudioUri;
+    const convHistory = pendingConversationHistory;
+
+    if (entryId && name) {
+      await updateJournalEntry(entryId, { name });
+    }
+
+    setShowNameModal(false);
     setPendingEntryId(null);
+    setPendingAudioUri(null);
+    setPendingConversationHistory([]);
+
+    // Navigate to JournalList - entry will show as "Processing..."
     navigation.navigate('JournalList');
-    navigation.navigate('EntryDetail', { entryId });
+
+    // Start background processing (fire and forget)
+    if (entryId) {
+      if (audioUri) {
+        // Solo mode
+        processSoloEntryInBackground(entryId, audioUri);
+      } else if (convHistory.length > 0) {
+        // Conversational mode
+        processConversationInBackground(entryId, convHistory);
+      }
+    }
   };
 
   const handleSkipName = () => {
-    setShowNameModal(false);
     const entryId = pendingEntryId;
+    const audioUri = pendingAudioUri;
+    const convHistory = pendingConversationHistory;
+
+    setShowNameModal(false);
     setPendingEntryId(null);
+    setPendingAudioUri(null);
+    setPendingConversationHistory([]);
+
+    // Navigate to JournalList - entry will show as "Processing..."
     navigation.navigate('JournalList');
-    navigation.navigate('EntryDetail', { entryId });
+
+    // Start background processing (fire and forget)
+    if (entryId) {
+      if (audioUri) {
+        // Solo mode
+        processSoloEntryInBackground(entryId, audioUri);
+      } else if (convHistory.length > 0) {
+        // Conversational mode
+        processConversationInBackground(entryId, convHistory);
+      }
+    }
   };
 
   const isRecording = recordingState === RECORDING_STATES.RECORDING;
@@ -366,6 +377,9 @@ export default function HomeScreen({ navigation }) {
                 ]}
               />
               <Text style={[styles.statusText, mode === JOURNAL_MODES.CONVERSATIONAL && styles.statusTextDark]}>Recording</Text>
+              <Text style={[styles.elapsedTime, mode === JOURNAL_MODES.CONVERSATIONAL && styles.elapsedTimeDark]}>
+                {formatElapsedTime(elapsedSeconds)}
+              </Text>
             </View>
           )}
           {statusMessage && !isRecording && (
@@ -380,33 +394,25 @@ export default function HomeScreen({ navigation }) {
           </View>
         )}
 
-        {/* Recording Button - only show in ScrollView when NOT processing in conversational mode */}
+        {/* Recording Button - hide during conversational processing */}
         {!(mode === JOURNAL_MODES.CONVERSATIONAL && isProcessing) && (
           <View style={styles.recordingContainer}>
             <TouchableOpacity
               onPress={isRecording ? handleStopRecording : handleStartRecording}
               disabled={isProcessing}
             >
-              <Animated.View style={{ opacity: isProcessing ? processingPulseAnim : 1 }}>
-                <Animated.View
-                  style={[
-                    styles.recordButton,
-                    {
-                      borderRadius: buttonShapeAnim,
-                      width: buttonWidthAnim,
-                      height: buttonHeightAnim,
-                    },
-                    mode === JOURNAL_MODES.CONVERSATIONAL && styles.recordButtonDark,
-                    isRecording && styles.recordButtonActive,
-                    mode === JOURNAL_MODES.CONVERSATIONAL && isRecording && styles.recordButtonActiveDark,
-                  ]}
-                >
-                  {!isProcessing && (
-                    <Text style={[styles.recordButtonText, mode === JOURNAL_MODES.CONVERSATIONAL && styles.recordButtonTextDark]}>
-                      {isRecording ? 'Stop' : 'Record'}
-                    </Text>
-                  )}
-                </Animated.View>
+              <Animated.View
+                style={[
+                  styles.recordButton,
+                  { borderRadius: buttonShapeAnim },
+                  mode === JOURNAL_MODES.CONVERSATIONAL && styles.recordButtonDark,
+                  isRecording && styles.recordButtonActive,
+                  mode === JOURNAL_MODES.CONVERSATIONAL && isRecording && styles.recordButtonActiveDark,
+                ]}
+              >
+                <Text style={[styles.recordButtonText, mode === JOURNAL_MODES.CONVERSATIONAL && styles.recordButtonTextDark]}>
+                  {isRecording ? 'Stop' : 'Record'}
+                </Text>
               </Animated.View>
             </TouchableOpacity>
           </View>
@@ -422,12 +428,7 @@ export default function HomeScreen({ navigation }) {
           </TouchableOpacity>
         )}
 
-        {/* Spacer when processing bar is fixed at bottom */}
-        {mode === JOURNAL_MODES.CONVERSATIONAL && isProcessing && (
-          <View style={styles.processingSpacerInScroll} />
-        )}
-
-        {/* Subtle Entries Button - only in ScrollView when NOT processing in conversational mode */}
+        {/* Subtle Entries Button - hide during conversational processing */}
         {!(mode === JOURNAL_MODES.CONVERSATIONAL && isProcessing) && (
           <View style={styles.entriesButtonContainer}>
             <TouchableOpacity
@@ -444,33 +445,6 @@ export default function HomeScreen({ navigation }) {
           </View>
         )}
       </ScrollView>
-
-      {/* Fixed Loading Bar and Entries Button for Conversational Processing */}
-      {mode === JOURNAL_MODES.CONVERSATIONAL && isProcessing && (
-        <View style={styles.fixedBottomContainer}>
-          <Animated.View style={{ opacity: processingPulseAnim }}>
-            <Animated.View
-              style={[
-                styles.recordButton,
-                styles.recordButtonDark,
-                {
-                  borderRadius: buttonShapeAnim,
-                  width: buttonWidthAnim,
-                  height: buttonHeightAnim,
-                },
-              ]}
-            />
-          </Animated.View>
-          <TouchableOpacity
-            onPress={() => navigation.navigate('JournalList')}
-            style={[styles.entriesButton, styles.entriesButtonDark, styles.fixedEntriesButton]}
-          >
-            <Text style={[styles.entriesButtonText, styles.entriesButtonTextDark]}>
-              ···
-            </Text>
-          </TouchableOpacity>
-        </View>
-      )}
 
       <NameEntryModal
         visible={showNameModal}
@@ -538,6 +512,15 @@ const styles = StyleSheet.create({
   statusTextDark: {
     color: '#FFFFFF',
   },
+  elapsedTime: {
+    fontSize: 14,
+    color: COLORS.textSecondary,
+    fontWeight: '400',
+    fontVariant: ['tabular-nums'],
+  },
+  elapsedTimeDark: {
+    color: '#FFFFFF',
+  },
   responseContainer: {
     backgroundColor: COLORS.card,
     padding: 20,
@@ -567,6 +550,8 @@ const styles = StyleSheet.create({
     justifyContent: 'center',
   },
   recordButton: {
+    width: 120,
+    height: 120,
     backgroundColor: COLORS.primary,
     justifyContent: 'center',
     alignItems: 'center',
@@ -637,18 +622,5 @@ const styles = StyleSheet.create({
   },
   entriesButtonTextDark: {
     color: '#FFFFFF',
-  },
-  fixedBottomContainer: {
-    position: 'absolute',
-    bottom: 100,
-    left: 0,
-    right: 0,
-    alignItems: 'center',
-  },
-  fixedEntriesButton: {
-    marginTop: 20,
-  },
-  processingSpacerInScroll: {
-    height: 120,
   },
 });

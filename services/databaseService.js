@@ -122,6 +122,18 @@ export const initDatabase = async () => {
       }
     }
 
+    // Migration: Add audio_path column to conversation_messages
+    try {
+      await db.execAsync(`
+        ALTER TABLE conversation_messages ADD COLUMN audio_path TEXT;
+      `);
+      console.log('Added audio_path column to conversation_messages');
+    } catch (error) {
+      if (!error.message.includes('duplicate column name')) {
+        console.error('Migration error:', error);
+      }
+    }
+
     console.log('Database initialized successfully');
   } catch (error) {
     console.error('Error initializing database:', error);
@@ -175,10 +187,10 @@ export const updateJournalEntry = async (id, updates) => {
   );
 };
 
-export const addConversationMessage = async (entryId, role, content) => {
+export const addConversationMessage = async (entryId, role, content, audioPath = null) => {
   await db.runAsync(
-    'INSERT INTO conversation_messages (entry_id, role, content) VALUES (?, ?, ?)',
-    [entryId, role, content]
+    'INSERT INTO conversation_messages (entry_id, role, content, audio_path) VALUES (?, ?, ?, ?)',
+    [entryId, role, content, audioPath]
   );
 };
 

@@ -2,6 +2,7 @@ import React, { useState, useEffect } from 'react';
 import {
   View,
   Text,
+  TextInput,
   StyleSheet,
   ScrollView,
   TouchableOpacity,
@@ -12,16 +13,21 @@ import {
   getJournalEntry,
   getConversationMessages,
   deleteJournalEntry,
+  updateJournalEntry,
 } from '../services/databaseService';
-import { playAudio, stopAudio, deleteAudioFile } from '../services/audioService';
-import { COLORS, JOURNAL_MODES } from '../utils/constants';
+import { stopAudio, deleteAudioFile } from '../services/audioService';
+import { COLORS, JOURNAL_MODES } from '../utils/constants'
+import AudioPlayer from '../components/AudioPlayer';
 
 export default function EntryDetailScreen({ route, navigation }) {
   const { entryId } = route.params;
   const [entry, setEntry] = useState(null);
   const [messages, setMessages] = useState([]);
-  const [isPlaying, setIsPlaying] = useState(false);
   const [loading, setLoading] = useState(true);
+  const [selectedAudioIndex, setSelectedAudioIndex] = useState(0);
+  const [isEditingName, setIsEditingName] = useState(false);
+  const [editingName, setEditingName] = useState('');
+  const [showFullTranscript, setShowFullTranscript] = useState(false);
 
   useEffect(() => {
     loadEntry();
@@ -30,6 +36,17 @@ export default function EntryDetailScreen({ route, navigation }) {
       stopAudio();
     };
   }, [entryId]);
+
+  // Auto-refresh while entry is processing
+  useEffect(() => {
+    if (entry && !entry.summary) {
+      const timer = setTimeout(() => {
+        loadEntry();
+      }, 2500);
+
+      return () => clearTimeout(timer);
+    }
+  }, [entry]);
 
   const loadEntry = async () => {
     try {
@@ -49,29 +66,6 @@ export default function EntryDetailScreen({ route, navigation }) {
     }
   };
 
-  const handlePlayAudio = async () => {
-    try {
-      if (isPlaying) {
-        await stopAudio();
-        setIsPlaying(false);
-      } else {
-        if (entry.audio_path) {
-          await playAudio(entry.audio_path);
-          setIsPlaying(true);
-
-          // Auto-stop when done
-          setTimeout(async () => {
-            setIsPlaying(false);
-          }, 1000); // This is a simple implementation, ideally you'd use proper callbacks
-        }
-      }
-    } catch (error) {
-      console.error('Error playing audio:', error);
-      Alert.alert('Error', 'Failed to play audio');
-      setIsPlaying(false);
-    }
-  };
-
   const handleDeleteEntry = () => {
     Alert.alert(
       'Delete Entry',
@@ -87,7 +81,7 @@ export default function EntryDetailScreen({ route, navigation }) {
                 await deleteAudioFile(entry.audio_path);
               }
               await deleteJournalEntry(entry.id);
-              navigation.navigate('JournalList');
+              navigation.goBack();
             } catch (error) {
               console.error('Error deleting entry:', error);
               Alert.alert('Error', 'Failed to delete entry');
@@ -96,6 +90,28 @@ export default function EntryDetailScreen({ route, navigation }) {
         },
       ]
     );
+  };
+
+  const handleStartEditingName = () => {
+    setEditingName(entry.name || '');
+    setIsEditingName(true);
+  };
+
+  const handleSaveName = async () => {
+    try {
+      const trimmedName = editingName.trim();
+      await updateJournalEntry(entryId, { name: trimmedName || null });
+      setIsEditingName(false);
+      loadEntry();
+    } catch (error) {
+      console.error('Error updating name:', error);
+      Alert.alert('Error', 'Failed to update name');
+    }
+  };
+
+  const handleCancelEditingName = () => {
+    setIsEditingName(false);
+    setEditingName('');
   };
 
   const formatDate = (dateString) => {
@@ -126,6 +142,27 @@ export default function EntryDetailScreen({ route, navigation }) {
     );
   }
 
+  // Entry is still processing
+  if (!entry.summary) {
+    return (
+      <View style={styles.container}>
+        <View style={styles.header}>
+          <TouchableOpacity
+            style={styles.backButton}
+            onPress={() => navigation.goBack()}
+          >
+            <Text style={styles.backButtonText}>← Back</Text>
+          </TouchableOpacity>
+        </View>
+        <View style={styles.processingContainer}>
+          <ActivityIndicator size="large" color={COLORS.primary} />
+          <Text style={styles.processingText}>Transcribing and summarizing...</Text>
+          <Text style={styles.processingHint}>This usually takes 10-20 seconds</Text>
+        </View>
+      </View>
+    );
+  }
+
   return (
     <View style={styles.container}>
       <View style={styles.header}>
@@ -135,15 +172,52 @@ export default function EntryDetailScreen({ route, navigation }) {
         >
           <Text style={styles.backButtonText}>← Back</Text>
         </TouchableOpacity>
+        <TouchableOpacity
+          style={styles.headerActionButton}
+          onPress={handleDeleteEntry}
+        >
+          <Text style={styles.headerActionText}>Delete</Text>
+        </TouchableOpacity>
       </View>
 
       <ScrollView style={styles.scrollView} contentContainerStyle={styles.content}>
         {/* Entry Name */}
-        {entry.name && (
-          <View style={styles.nameContainer}>
-            <Text style={styles.entryName}>{entry.name}</Text>
-          </View>
-        )}
+        <View style={styles.nameContainer}>
+          {isEditingName ? (
+            <View style={styles.nameEditContainer}>
+              <TextInput
+                style={styles.nameInput}
+                value={editingName}
+                onChangeText={setEditingName}
+                placeholder="Enter a name"
+                placeholderTextColor={COLORS.textSecondary}
+                autoFocus
+                onSubmitEditing={handleSaveName}
+                returnKeyType="done"
+              />
+              <View style={styles.nameEditActions}>
+                <TouchableOpacity onPress={handleCancelEditingName}>
+                  <Text style={styles.nameEditCancel}>Cancel</Text>
+                </TouchableOpacity>
+                <TouchableOpacity onPress={handleSaveName}>
+                  <Text style={styles.nameEditSave}>Save</Text>
+                </TouchableOpacity>
+              </View>
+            </View>
+          ) : (
+            <View style={styles.nameDisplayContainer}>
+              <Text style={styles.entryName}>
+                {entry.name || 'Untitled Entry'}
+              </Text>
+              <TouchableOpacity
+                style={styles.editNameButton}
+                onPress={handleStartEditingName}
+              >
+                <Text style={styles.editNameIcon}>edit</Text>
+              </TouchableOpacity>
+            </View>
+          )}
+        </View>
 
         {/* Date and Mode */}
         <View style={styles.metaContainer}>
@@ -162,15 +236,78 @@ export default function EntryDetailScreen({ route, navigation }) {
         </View>
 
         {/* Audio Player */}
-        {entry.audio_path && (
-          <TouchableOpacity
-            style={styles.audioButton}
-            onPress={handlePlayAudio}
-          >
-            <Text style={styles.audioButtonText}>
-              {isPlaying ? '⏸ Pause Audio' : '▶ Play Audio'}
-            </Text>
-          </TouchableOpacity>
+        {entry.mode === JOURNAL_MODES.SOLO ? (
+          // Solo mode: single audio player
+          entry.audio_path && <AudioPlayer audioUri={entry.audio_path} />
+        ) : (
+          // Conversational mode: player with message selector
+          (() => {
+            const userMessagesWithAudio = messages.filter(
+              (msg) => msg.role === 'user' && msg.audio_path
+            );
+            if (userMessagesWithAudio.length === 0) return null;
+
+            const selectedAudio = userMessagesWithAudio[selectedAudioIndex];
+            return (
+              <View style={styles.audioSection}>
+                <AudioPlayer
+                  key={selectedAudio?.audio_path}
+                  audioUri={selectedAudio?.audio_path}
+                />
+                {userMessagesWithAudio.length > 1 && (
+                  <View style={styles.audioSelector}>
+                    <TouchableOpacity
+                      style={[
+                        styles.audioNavButton,
+                        selectedAudioIndex === 0 && styles.audioNavButtonDisabled,
+                      ]}
+                      onPress={() => {
+                        if (selectedAudioIndex > 0) {
+                          stopAudio();
+                          setSelectedAudioIndex(selectedAudioIndex - 1);
+                        }
+                      }}
+                      disabled={selectedAudioIndex === 0}
+                    >
+                      <Text
+                        style={[
+                          styles.audioNavButtonText,
+                          selectedAudioIndex === 0 && styles.audioNavButtonTextDisabled,
+                        ]}
+                      >
+                        ◀
+                      </Text>
+                    </TouchableOpacity>
+                    <Text style={styles.audioCounter}>
+                      {selectedAudioIndex + 1} of {userMessagesWithAudio.length}
+                    </Text>
+                    <TouchableOpacity
+                      style={[
+                        styles.audioNavButton,
+                        selectedAudioIndex === userMessagesWithAudio.length - 1 && styles.audioNavButtonDisabled,
+                      ]}
+                      onPress={() => {
+                        if (selectedAudioIndex < userMessagesWithAudio.length - 1) {
+                          stopAudio();
+                          setSelectedAudioIndex(selectedAudioIndex + 1);
+                        }
+                      }}
+                      disabled={selectedAudioIndex === userMessagesWithAudio.length - 1}
+                    >
+                      <Text
+                        style={[
+                          styles.audioNavButtonText,
+                          selectedAudioIndex === userMessagesWithAudio.length - 1 && styles.audioNavButtonTextDisabled,
+                        ]}
+                      >
+                        ▶
+                      </Text>
+                    </TouchableOpacity>
+                  </View>
+                )}
+              </View>
+            );
+          })()
         )}
 
         {/* Summary */}
@@ -183,7 +320,7 @@ export default function EntryDetailScreen({ route, navigation }) {
           </View>
         )}
 
-        {/* Full Transcript */}
+        {/* Transcript */}
         <View style={styles.section}>
           <Text style={styles.sectionTitle}>
             {entry.mode === JOURNAL_MODES.CONVERSATIONAL
@@ -192,37 +329,58 @@ export default function EntryDetailScreen({ route, navigation }) {
           </Text>
           <View style={styles.transcriptCard}>
             {entry.mode === JOURNAL_MODES.CONVERSATIONAL && messages.length > 0 ? (
-              messages.map((msg, index) => (
-                <View
-                  key={index}
-                  style={[
-                    styles.messageContainer,
-                    msg.role === 'user'
-                      ? styles.userMessage
-                      : styles.assistantMessage,
-                  ]}
-                >
-                  <Text style={styles.messageRole}>
-                    {msg.role === 'user' ? 'You' : 'Assistant'}
-                  </Text>
-                  <Text style={styles.messageContent}>{msg.content}</Text>
-                </View>
-              ))
+              // Conversational mode: show messages with truncation
+              <>
+                {(showFullTranscript ? messages : messages.slice(0, 3)).map((msg, index) => (
+                  <View
+                    key={index}
+                    style={[
+                      styles.messageContainer,
+                      msg.role === 'user'
+                        ? styles.userMessage
+                        : styles.assistantMessage,
+                    ]}
+                  >
+                    <Text style={styles.messageRole}>
+                      {msg.role === 'user' ? 'You' : 'Assistant'}
+                    </Text>
+                    <Text style={styles.messageContent}>{msg.content}</Text>
+                  </View>
+                ))}
+                {messages.length > 3 && (
+                  <TouchableOpacity
+                    style={styles.showAllButton}
+                    onPress={() => setShowFullTranscript(!showFullTranscript)}
+                  >
+                    <Text style={styles.showAllButtonText}>
+                      {showFullTranscript ? 'Show less' : `Show all (${messages.length} messages)`}
+                    </Text>
+                  </TouchableOpacity>
+                )}
+              </>
             ) : (
-              <Text style={styles.transcriptText}>
-                {entry.transcript || 'No transcript available'}
-              </Text>
+              // Solo mode: show transcript with line truncation
+              <>
+                <Text
+                  style={styles.transcriptText}
+                  numberOfLines={showFullTranscript ? undefined : 5}
+                >
+                  {entry.transcript || 'No transcript available'}
+                </Text>
+                {entry.transcript && entry.transcript.length > 300 && (
+                  <TouchableOpacity
+                    style={styles.showAllButton}
+                    onPress={() => setShowFullTranscript(!showFullTranscript)}
+                  >
+                    <Text style={styles.showAllButtonText}>
+                      {showFullTranscript ? 'Show less' : 'Show all'}
+                    </Text>
+                  </TouchableOpacity>
+                )}
+              </>
             )}
           </View>
         </View>
-
-        {/* Delete Button */}
-        <TouchableOpacity
-          style={styles.deleteButton}
-          onPress={handleDeleteEntry}
-        >
-          <Text style={styles.deleteButtonText}>Delete Entry</Text>
-        </TouchableOpacity>
       </ScrollView>
     </View>
   );
@@ -240,6 +398,9 @@ const styles = StyleSheet.create({
     backgroundColor: COLORS.background,
   },
   header: {
+    flexDirection: 'row',
+    justifyContent: 'space-between',
+    alignItems: 'center',
     paddingTop: 60,
     paddingHorizontal: 40,
     paddingBottom: 25,
@@ -247,8 +408,13 @@ const styles = StyleSheet.create({
     borderBottomWidth: 1,
     borderBottomColor: COLORS.border,
   },
-  backButton: {
-    alignSelf: 'flex-start',
+  backButton: {},
+  headerActionButton: {},
+  headerActionText: {
+    fontSize: 13,
+    color: COLORS.text,
+    fontWeight: '400',
+    letterSpacing: 1,
   },
   backButtonText: {
     fontSize: 13,
@@ -267,11 +433,55 @@ const styles = StyleSheet.create({
   nameContainer: {
     marginBottom: 20,
   },
+  nameDisplayContainer: {
+    flexDirection: 'row',
+    alignItems: 'center',
+    gap: 12,
+  },
   entryName: {
     fontSize: 20,
     fontWeight: '400',
     color: COLORS.text,
     letterSpacing: 0.5,
+    flex: 1,
+  },
+  editNameButton: {
+    padding: 4,
+  },
+  editNameIcon: {
+    fontSize: 11,
+    color: COLORS.textSecondary,
+    fontWeight: '400',
+    letterSpacing: 1,
+  },
+  nameEditContainer: {
+    gap: 12,
+  },
+  nameInput: {
+    fontSize: 20,
+    fontWeight: '400',
+    color: COLORS.text,
+    letterSpacing: 0.5,
+    borderBottomWidth: 1,
+    borderBottomColor: COLORS.border,
+    paddingVertical: 8,
+  },
+  nameEditActions: {
+    flexDirection: 'row',
+    justifyContent: 'flex-end',
+    gap: 20,
+  },
+  nameEditCancel: {
+    fontSize: 13,
+    color: COLORS.textSecondary,
+    fontWeight: '400',
+    letterSpacing: 1,
+  },
+  nameEditSave: {
+    fontSize: 13,
+    color: COLORS.text,
+    fontWeight: '500',
+    letterSpacing: 1,
   },
   metaContainer: {
     flexDirection: 'row',
@@ -302,21 +512,45 @@ const styles = StyleSheet.create({
     color: COLORS.card,
     letterSpacing: 1,
   },
-  audioButton: {
-    backgroundColor: COLORS.primary,
-    paddingVertical: 14,
-    paddingHorizontal: 20,
-    alignItems: 'center',
+  audioSection: {
     marginBottom: 40,
+  },
+  audioSelector: {
+    flexDirection: 'row',
+    alignItems: 'center',
+    justifyContent: 'center',
+    marginTop: -30,
+    marginBottom: 10,
+    gap: 16,
+  },
+  audioNavButton: {
+    width: 36,
+    height: 36,
+    borderRadius: 18,
     borderWidth: 1,
     borderColor: COLORS.border,
-    borderRadius: 8,
+    backgroundColor: COLORS.background,
+    justifyContent: 'center',
+    alignItems: 'center',
   },
-  audioButtonText: {
+  audioNavButtonDisabled: {
+    opacity: 0.3,
+  },
+  audioNavButtonText: {
+    fontSize: 14,
+    fontWeight: '400',
+    color: COLORS.text,
+  },
+  audioNavButtonTextDisabled: {
+    color: COLORS.textSecondary,
+  },
+  audioCounter: {
     fontSize: 13,
     fontWeight: '400',
-    color: COLORS.card,
-    letterSpacing: 1,
+    color: COLORS.text,
+    letterSpacing: 0.5,
+    minWidth: 60,
+    textAlign: 'center',
   },
   section: {
     marginBottom: 40,
@@ -386,20 +620,33 @@ const styles = StyleSheet.create({
     marginTop: 100,
     fontWeight: '300',
   },
-  deleteButton: {
-    backgroundColor: COLORS.background,
-    paddingVertical: 14,
-    paddingHorizontal: 20,
+  processingContainer: {
+    flex: 1,
+    justifyContent: 'center',
     alignItems: 'center',
-    marginTop: 40,
-    borderWidth: 1,
-    borderColor: COLORS.border,
-    borderRadius: 8,
+    paddingHorizontal: 40,
   },
-  deleteButtonText: {
+  processingText: {
+    fontSize: 14,
+    color: COLORS.text,
+    fontWeight: '400',
+    marginTop: 20,
+    letterSpacing: 0.5,
+  },
+  processingHint: {
+    fontSize: 12,
+    color: COLORS.textSecondary,
+    fontWeight: '300',
+    marginTop: 8,
+  },
+  showAllButton: {
+    paddingVertical: 12,
+    marginTop: 10,
+  },
+  showAllButtonText: {
     fontSize: 13,
     fontWeight: '400',
-    color: COLORS.text,
-    letterSpacing: 1,
+    color: COLORS.textSecondary,
+    letterSpacing: 0.5,
   },
 });
