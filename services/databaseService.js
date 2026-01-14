@@ -403,6 +403,14 @@ export const getFolderEntryCount = async (folderId, folderType) => {
   return result.count;
 };
 
+export const getFoldersForEntry = async (entryId) => {
+  const result = await db.getAllAsync(
+    'SELECT folder_id FROM folder_entries WHERE entry_id = ? AND folder_type = ?',
+    [entryId, 'manual']
+  );
+  return result.map(row => row.folder_id);
+};
+
 // Sorting and Filtering
 
 export const getJournalEntriesSorted = async (sortBy = 'date_desc') => {

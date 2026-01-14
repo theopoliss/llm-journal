@@ -15,7 +15,12 @@ import {
   getSmartFolders,
   getManualFolders,
   getFolderEntryCount,
+  createManualFolder,
+  getFoldersForEntry,
+  addEntryToFolder,
+  removeEntryFromFolder,
 } from '../services/databaseService';
+import FolderPickerModal from '../components/FolderPickerModal';
 import { deleteAudioFile } from '../services/audioService';
 import {
   checkClusteringEligibility,
@@ -34,6 +39,9 @@ export default function JournalListScreen({ navigation }) {
   const [menuVisible, setMenuVisible] = useState(null);
   const [regenerating, setRegenerating] = useState(false);
   const [regenerateProgress, setRegenerateProgress] = useState('');
+  const [folderPickerVisible, setFolderPickerVisible] = useState(false);
+  const [selectedEntryForFolder, setSelectedEntryForFolder] = useState(null);
+  const [entryFolderIds, setEntryFolderIds] = useState([]);
 
   useEffect(() => {
     loadData();
@@ -184,6 +192,86 @@ export default function JournalListScreen({ navigation }) {
     }
   };
 
+  const handleCreateFolder = () => {
+    Alert.prompt(
+      'New Folder',
+      'Enter a name for your folder',
+      [
+        { text: 'Cancel', style: 'cancel' },
+        {
+          text: 'Create',
+          onPress: async (name) => {
+            const trimmedName = name?.trim();
+            if (!trimmedName) return;
+            try {
+              await createManualFolder(trimmedName);
+              loadData();
+            } catch (error) {
+              console.error('Error creating folder:', error);
+              Alert.alert('Error', 'Failed to create folder');
+            }
+          },
+        },
+      ],
+      'plain-text'
+    );
+  };
+
+  const handleOpenFolderPicker = async (entry) => {
+    setMenuVisible(null);
+    try {
+      const folderIds = await getFoldersForEntry(entry.id);
+      setEntryFolderIds(folderIds);
+      setSelectedEntryForFolder(entry);
+      // Load manual folders if not already loaded
+      if (manualFolders.length === 0) {
+        const folders = await getManualFolders();
+        setManualFolders(folders);
+      }
+      setFolderPickerVisible(true);
+    } catch (error) {
+      console.error('Error loading folders:', error);
+      Alert.alert('Error', 'Failed to load folders');
+    }
+  };
+
+  const handleToggleFolder = async (folderId) => {
+    if (!selectedEntryForFolder) return;
+    try {
+      if (entryFolderIds.includes(folderId)) {
+        await removeEntryFromFolder(folderId, selectedEntryForFolder.id, 'manual');
+        setEntryFolderIds(entryFolderIds.filter(id => id !== folderId));
+      } else {
+        await addEntryToFolder(folderId, selectedEntryForFolder.id, 'manual');
+        setEntryFolderIds([...entryFolderIds, folderId]);
+      }
+    } catch (error) {
+      console.error('Error toggling folder:', error);
+      Alert.alert('Error', 'Failed to update folder');
+    }
+  };
+
+  const handleCreateFolderFromPicker = async (name) => {
+    try {
+      await createManualFolder(name);
+      const folders = await getManualFolders();
+      setManualFolders(folders);
+    } catch (error) {
+      console.error('Error creating folder:', error);
+      Alert.alert('Error', 'Failed to create folder');
+    }
+  };
+
+  const handleCloseFolderPicker = () => {
+    setFolderPickerVisible(false);
+    setSelectedEntryForFolder(null);
+    setEntryFolderIds([]);
+    // Refresh folder counts if we're on the folders tab
+    if (activeTab === LIBRARY_TABS.MANUAL_FOLDERS) {
+      loadData();
+    }
+  };
+
   const formatDate = (dateString) => {
     const date = new Date(dateString);
     const now = new Date();
@@ -270,6 +358,12 @@ export default function JournalListScreen({ navigation }) {
               activeOpacity={1}
             />
             <View style={styles.menuDropdown}>
+              <TouchableOpacity
+                style={styles.menuItem}
+                onPress={() => handleOpenFolderPicker(item)}
+              >
+                <Text style={styles.menuItemText}>Add to Folder</Text>
+              </TouchableOpacity>
               <TouchableOpacity
                 style={styles.menuItem}
                 onPress={() => handleDeleteEntry(item)}
@@ -413,10 +507,16 @@ export default function JournalListScreen({ navigation }) {
       if (manualFolders.length === 0) {
         return (
           <View style={styles.emptyContainer}>
-            <Text style={styles.emptyText}>No manual folders yet</Text>
+            <Text style={styles.emptyText}>No folders yet</Text>
             <Text style={styles.emptySubtext}>
               Create folders to organize your entries
             </Text>
+            <TouchableOpacity
+              style={styles.emptyCreateButton}
+              onPress={handleCreateFolder}
+            >
+              <Text style={styles.emptyCreateButtonText}>Create Folder</Text>
+            </TouchableOpacity>
           </View>
         );
       }
@@ -450,12 +550,22 @@ export default function JournalListScreen({ navigation }) {
         </TouchableOpacity>
         <View style={styles.titleRow}>
           <Text style={styles.title}>Journal Entries</Text>
-          <TouchableOpacity
-            style={styles.searchIcon}
-            onPress={() => navigation.navigate('Search')}
-          >
-            <Feather name="search" size={18} color={COLORS.text} />
-          </TouchableOpacity>
+          <View style={styles.headerActions}>
+            {activeTab === LIBRARY_TABS.MANUAL_FOLDERS && (
+              <TouchableOpacity
+                style={styles.newButton}
+                onPress={handleCreateFolder}
+              >
+                <Text style={styles.newButtonText}>new</Text>
+              </TouchableOpacity>
+            )}
+            <TouchableOpacity
+              style={styles.searchIcon}
+              onPress={() => navigation.navigate('Search')}
+            >
+              <Feather name="search" size={18} color={COLORS.text} />
+            </TouchableOpacity>
+          </View>
         </View>
       </View>
 
@@ -480,6 +590,16 @@ export default function JournalListScreen({ navigation }) {
 
       {/* Tab Content */}
       {renderTabContent()}
+
+      {/* Folder Picker Modal */}
+      <FolderPickerModal
+        visible={folderPickerVisible}
+        onClose={handleCloseFolderPicker}
+        folders={manualFolders}
+        selectedFolderIds={entryFolderIds}
+        onToggleFolder={handleToggleFolder}
+        onCreateFolder={handleCreateFolderFromPicker}
+      />
     </View>
   );
 }
@@ -515,6 +635,20 @@ const styles = StyleSheet.create({
     fontWeight: '300',
     color: COLORS.text,
     letterSpacing: 2,
+  },
+  headerActions: {
+    flexDirection: 'row',
+    alignItems: 'center',
+    gap: 16,
+  },
+  newButton: {
+    padding: 8,
+  },
+  newButtonText: {
+    fontSize: 11,
+    color: COLORS.textSecondary,
+    fontWeight: '400',
+    letterSpacing: 1,
   },
   searchIcon: {
     padding: 8,
@@ -719,6 +853,20 @@ const styles = StyleSheet.create({
     color: COLORS.textSecondary,
     textAlign: 'center',
     fontWeight: '300',
+  },
+  emptyCreateButton: {
+    marginTop: 20,
+    paddingVertical: 12,
+    paddingHorizontal: 24,
+    borderWidth: 1,
+    borderColor: COLORS.border,
+    borderRadius: 8,
+  },
+  emptyCreateButtonText: {
+    fontSize: 13,
+    color: COLORS.text,
+    fontWeight: '400',
+    letterSpacing: 1,
   },
   menuButton: {
     width: 60,

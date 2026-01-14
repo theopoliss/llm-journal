@@ -14,7 +14,13 @@ import {
   getConversationMessages,
   deleteJournalEntry,
   updateJournalEntry,
+  getManualFolders,
+  getFoldersForEntry,
+  addEntryToFolder,
+  removeEntryFromFolder,
+  createManualFolder,
 } from '../services/databaseService';
+import FolderPickerModal from '../components/FolderPickerModal';
 import { stopAudio, deleteAudioFile } from '../services/audioService';
 import { COLORS, JOURNAL_MODES } from '../utils/constants'
 import AudioPlayer from '../components/AudioPlayer';
@@ -28,6 +34,9 @@ export default function EntryDetailScreen({ route, navigation }) {
   const [isEditingName, setIsEditingName] = useState(false);
   const [editingName, setEditingName] = useState('');
   const [showFullTranscript, setShowFullTranscript] = useState(false);
+  const [folderPickerVisible, setFolderPickerVisible] = useState(false);
+  const [manualFolders, setManualFolders] = useState([]);
+  const [entryFolderIds, setEntryFolderIds] = useState([]);
 
   useEffect(() => {
     loadEntry();
@@ -114,6 +123,47 @@ export default function EntryDetailScreen({ route, navigation }) {
     setEditingName('');
   };
 
+  const handleOpenFolderPicker = async () => {
+    try {
+      const [folders, folderIds] = await Promise.all([
+        getManualFolders(),
+        getFoldersForEntry(entryId),
+      ]);
+      setManualFolders(folders);
+      setEntryFolderIds(folderIds);
+      setFolderPickerVisible(true);
+    } catch (error) {
+      console.error('Error loading folders:', error);
+      Alert.alert('Error', 'Failed to load folders');
+    }
+  };
+
+  const handleToggleFolder = async (folderId) => {
+    try {
+      if (entryFolderIds.includes(folderId)) {
+        await removeEntryFromFolder(folderId, entryId, 'manual');
+        setEntryFolderIds(entryFolderIds.filter(id => id !== folderId));
+      } else {
+        await addEntryToFolder(folderId, entryId, 'manual');
+        setEntryFolderIds([...entryFolderIds, folderId]);
+      }
+    } catch (error) {
+      console.error('Error toggling folder:', error);
+      Alert.alert('Error', 'Failed to update folder');
+    }
+  };
+
+  const handleCreateFolderFromPicker = async (name) => {
+    try {
+      await createManualFolder(name);
+      const folders = await getManualFolders();
+      setManualFolders(folders);
+    } catch (error) {
+      console.error('Error creating folder:', error);
+      Alert.alert('Error', 'Failed to create folder');
+    }
+  };
+
   const formatDate = (dateString) => {
     const date = new Date(dateString);
     return date.toLocaleDateString('en-US', {
@@ -172,12 +222,20 @@ export default function EntryDetailScreen({ route, navigation }) {
         >
           <Text style={styles.backButtonText}>← Back</Text>
         </TouchableOpacity>
-        <TouchableOpacity
-          style={styles.headerActionButton}
-          onPress={handleDeleteEntry}
-        >
-          <Text style={styles.headerActionText}>Delete</Text>
-        </TouchableOpacity>
+        <View style={styles.headerActions}>
+          <TouchableOpacity
+            style={styles.headerActionButton}
+            onPress={handleOpenFolderPicker}
+          >
+            <Text style={styles.headerActionText}>folder</Text>
+          </TouchableOpacity>
+          <TouchableOpacity
+            style={styles.headerActionButton}
+            onPress={handleDeleteEntry}
+          >
+            <Text style={styles.headerActionText}>delete</Text>
+          </TouchableOpacity>
+        </View>
       </View>
 
       <ScrollView style={styles.scrollView} contentContainerStyle={styles.content}>
@@ -382,6 +440,16 @@ export default function EntryDetailScreen({ route, navigation }) {
           </View>
         </View>
       </ScrollView>
+
+      {/* Folder Picker Modal */}
+      <FolderPickerModal
+        visible={folderPickerVisible}
+        onClose={() => setFolderPickerVisible(false)}
+        folders={manualFolders}
+        selectedFolderIds={entryFolderIds}
+        onToggleFolder={handleToggleFolder}
+        onCreateFolder={handleCreateFolderFromPicker}
+      />
     </View>
   );
 }
@@ -407,6 +475,11 @@ const styles = StyleSheet.create({
     backgroundColor: COLORS.background,
   },
   backButton: {},
+  headerActions: {
+    flexDirection: 'row',
+    alignItems: 'center',
+    gap: 16,
+  },
   headerActionButton: {},
   headerActionText: {
     fontSize: 11,

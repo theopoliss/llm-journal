@@ -14,6 +14,9 @@ import {
   getSmartFolder,
   deleteJournalEntry,
   updateSmartFolder,
+  updateManualFolder,
+  deleteManualFolder,
+  removeEntryFromFolder,
 } from '../services/databaseService';
 import { deleteAudioFile } from '../services/audioService';
 import { COLORS, JOURNAL_MODES } from '../utils/constants';
@@ -100,32 +103,83 @@ export default function FolderDetailScreen({ route, navigation }) {
   };
 
   const handleEditFolderName = () => {
-    if (folder && folder.type === 'cluster') {
-      Alert.prompt(
-        'Rename Folder',
-        'Enter a new name for this folder',
-        [
-          { text: 'Cancel', style: 'cancel' },
-          {
-            text: 'Save',
-            onPress: async (newName) => {
-              if (newName && newName.trim()) {
-                try {
+    const currentName = folder?.name || folderName;
+    Alert.prompt(
+      'Rename Folder',
+      'Enter a new name for this folder',
+      [
+        { text: 'Cancel', style: 'cancel' },
+        {
+          text: 'Save',
+          onPress: async (newName) => {
+            if (newName && newName.trim()) {
+              try {
+                if (folderType === 'manual') {
+                  await updateManualFolder(folderId, newName.trim());
+                } else {
                   await updateSmartFolder(folderId, { name: newName.trim() });
-                  setFolder({ ...folder, name: newName.trim() });
-                  navigation.setParams({ folderName: newName.trim() });
-                } catch (error) {
-                  console.error('Error renaming folder:', error);
-                  Alert.alert('Error', 'Failed to rename folder');
                 }
+                if (folder) {
+                  setFolder({ ...folder, name: newName.trim() });
+                }
+                navigation.setParams({ folderName: newName.trim() });
+              } catch (error) {
+                console.error('Error renaming folder:', error);
+                Alert.alert('Error', 'Failed to rename folder');
               }
-            },
+            }
           },
-        ],
-        'plain-text',
-        folder.name
-      );
-    }
+        },
+      ],
+      'plain-text',
+      currentName
+    );
+  };
+
+  const handleDeleteFolder = () => {
+    Alert.alert(
+      'Delete Folder',
+      'Are you sure you want to delete this folder? Entries will not be deleted.',
+      [
+        { text: 'Cancel', style: 'cancel' },
+        {
+          text: 'Delete',
+          style: 'destructive',
+          onPress: async () => {
+            try {
+              await deleteManualFolder(folderId);
+              navigation.goBack();
+            } catch (error) {
+              console.error('Error deleting folder:', error);
+              Alert.alert('Error', 'Failed to delete folder');
+            }
+          },
+        },
+      ]
+    );
+  };
+
+  const handleRemoveFromFolder = (entry) => {
+    setMenuVisible(null);
+    Alert.alert(
+      'Remove from Folder',
+      'Remove this entry from the folder?',
+      [
+        { text: 'Cancel', style: 'cancel' },
+        {
+          text: 'Remove',
+          onPress: async () => {
+            try {
+              await removeEntryFromFolder(folderId, entry.id, 'manual');
+              loadData();
+            } catch (error) {
+              console.error('Error removing from folder:', error);
+              Alert.alert('Error', 'Failed to remove entry from folder');
+            }
+          },
+        },
+      ]
+    );
   };
 
   const formatDate = (dateString) => {
@@ -214,11 +268,19 @@ export default function FolderDetailScreen({ route, navigation }) {
               activeOpacity={1}
             />
             <View style={styles.menuDropdown}>
+              {folderType === 'manual' && (
+                <TouchableOpacity
+                  style={styles.menuItem}
+                  onPress={() => handleRemoveFromFolder(item)}
+                >
+                  <Text style={styles.menuItemText}>Remove from Folder</Text>
+                </TouchableOpacity>
+              )}
               <TouchableOpacity
                 style={styles.menuItem}
                 onPress={() => handleDeleteEntry(item)}
               >
-                <Text style={styles.menuItemText}>Delete</Text>
+                <Text style={styles.menuItemText}>Delete Entry</Text>
               </TouchableOpacity>
             </View>
           </>
@@ -232,13 +294,23 @@ export default function FolderDetailScreen({ route, navigation }) {
       <View style={styles.header}>
         <View style={styles.headerTop}>
           <Text style={styles.title}>{folderName}</Text>
-          {folder && folder.type === 'cluster' && (
-            <TouchableOpacity
-              style={styles.editButton}
-              onPress={handleEditFolderName}
-            >
-              <Text style={styles.editButtonText}>Rename</Text>
-            </TouchableOpacity>
+          {(folderType === 'manual' || (folder && folder.type === 'cluster')) && (
+            <View style={styles.headerActions}>
+              <TouchableOpacity
+                style={styles.headerActionButton}
+                onPress={handleEditFolderName}
+              >
+                <Text style={styles.headerActionText}>rename</Text>
+              </TouchableOpacity>
+              {folderType === 'manual' && (
+                <TouchableOpacity
+                  style={styles.headerActionButton}
+                  onPress={handleDeleteFolder}
+                >
+                  <Text style={styles.headerActionText}>delete</Text>
+                </TouchableOpacity>
+              )}
+            </View>
           )}
         </View>
         <TouchableOpacity
@@ -301,18 +373,17 @@ const styles = StyleSheet.create({
     letterSpacing: 2,
     flex: 1,
   },
-  editButton: {
-    paddingHorizontal: 12,
-    paddingVertical: 6,
-    borderWidth: 1,
-    borderColor: COLORS.border,
-    borderRadius: 8,
+  headerActions: {
+    flexDirection: 'row',
+    alignItems: 'center',
+    gap: 16,
   },
-  editButtonText: {
-    fontSize: 12,
-    color: COLORS.text,
+  headerActionButton: {},
+  headerActionText: {
+    fontSize: 11,
+    color: COLORS.textSecondary,
     fontWeight: '400',
-    letterSpacing: 0.5,
+    letterSpacing: 1,
   },
   backButton: {
     alignSelf: 'flex-start',
