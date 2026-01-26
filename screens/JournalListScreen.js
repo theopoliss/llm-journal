@@ -54,13 +54,21 @@ export default function JournalListScreen({ navigation }) {
     return unsubscribe;
   }, [navigation, activeTab]);
 
-  // Auto-refresh while there are processing entries
+  // Auto-refresh while there are processing entries (not errors)
   useEffect(() => {
     if (activeTab !== LIBRARY_TABS.ALL) return;
 
-    const hasProcessingEntries = entries.some(entry => !entry.summary);
+    // Only auto-refresh for entries that are still processing (no summary and no error)
+    const hasProcessingEntries = entries.some(
+      entry => !entry.summary || (entry.summary && !entry.summary.startsWith('[Error]') && entry.summary === '')
+    );
 
-    if (hasProcessingEntries) {
+    // Exclude entries with errors from triggering refresh
+    const hasActivelyProcessingEntries = entries.some(
+      entry => !entry.summary
+    );
+
+    if (hasActivelyProcessingEntries) {
       const timer = setTimeout(() => {
         loadData();
       }, 2500);
@@ -335,9 +343,15 @@ export default function JournalListScreen({ navigation }) {
               <Text style={styles.entryName}>{item.name}</Text>
             )}
             {item.summary ? (
-              <Text style={styles.entrySummary} numberOfLines={2}>
-                {item.summary}
-              </Text>
+              item.summary.startsWith('[Error]') ? (
+                <Text style={styles.entryError} numberOfLines={2}>
+                  {item.summary.replace('[Error] ', '')}
+                </Text>
+              ) : (
+                <Text style={styles.entrySummary} numberOfLines={2}>
+                  {item.summary}
+                </Text>
+              )
             ) : (
               <Text style={styles.entryNoSummary}>Processing...</Text>
             )}
@@ -834,6 +848,12 @@ const styles = StyleSheet.create({
     fontSize: 14,
     color: COLORS.textSecondary,
     fontWeight: '300',
+  },
+  entryError: {
+    fontSize: 14,
+    color: '#B91C1C',
+    fontWeight: '300',
+    fontStyle: 'italic',
   },
   emptyContainer: {
     flex: 1,

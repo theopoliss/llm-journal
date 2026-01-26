@@ -208,7 +208,12 @@ export default function HomeScreen({ navigation }) {
       console.log('Background processing completed for entry', entryId);
     } catch (error) {
       console.error('Background processing error for entry', entryId, ':', error);
-      // Entry stays with null summary indicating processing failed
+      // Store error in database so UI can show meaningful message instead of "Processing..."
+      const errorMessage = error.message || 'Unknown error occurred';
+      await updateJournalEntry(entryId, {
+        summary: `[Error] ${errorMessage}`,
+        transcript: error.message?.includes('Audio file') ? null : undefined,
+      });
     }
   };
 
@@ -233,7 +238,11 @@ export default function HomeScreen({ navigation }) {
       console.log('Background processing completed for conversation', entryId);
     } catch (error) {
       console.error('Background processing error for conversation', entryId, ':', error);
-      // Entry stays with null summary indicating processing failed
+      // Store error in database so UI can show meaningful message instead of "Processing..."
+      const errorMessage = error.message || 'Unknown error occurred';
+      await updateJournalEntry(entryId, {
+        summary: `[Error] ${errorMessage}`,
+      });
     }
   };
 
